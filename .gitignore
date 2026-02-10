@@ -1,7 +1,5 @@
 examples/
 build/
-MultiGpu/
-multigpu/
 llvm-project/
 .github/
 

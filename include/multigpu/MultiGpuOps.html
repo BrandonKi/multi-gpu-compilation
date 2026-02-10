@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang xml:lang>
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>MultiGPU Dialect Operations</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    span.underline{text-decoration: underline;}
+    div.column{display: inline-block; vertical-align: top; width: 50%;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    ul.task-list{list-style: none;}
+  </style>
+  <style type="text/css">
+
+html {
+font-size: 62.5%;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+}
+body {
+font-size: 1.8rem;
+line-height: 1.618;
+max-width: 38em;
+margin: auto;
+color: #4a4a4a;
+background-color: #f9f9f9;
+padding: 13px;
+}
+@media (max-width: 684px) {
+body {
+font-size: 1.53rem;
+}
+}
+@media (max-width: 382px) {
+body {
+font-size: 1.35rem;
+}
+}
+h1, h2, h3, h4, h5, h6 {
+line-height: 1.1;
+font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+font-weight: 700;
+margin-top: 3rem;
+margin-bottom: 1.5rem;
+overflow-wrap: break-word;
+word-wrap: break-word;
+-ms-word-break: break-all;
+word-break: break-word;
+}
+h1 {
+font-size: 2.35em;
+}
+h2 {
+font-size: 2em;
+}
+h3 {
+font-size: 1.75em;
+}
+h4 {
+font-size: 1.5em;
+}
+h5 {
+font-size: 1.25em;
+}
+h6 {
+font-size: 1em;
+}
+p {
+margin-top: 0px;
+margin-bottom: 2.5rem;
+}
+small, sub, sup {
+font-size: 75%;
+}
+hr {
+border-color: #1d7484;
+}
+a {
+text-decoration: none;
+color: #1d7484;
+}
+a:visited {
+color: #144f5a;
+}
+a:hover {
+color: #982c61;
+border-bottom: 2px solid #4a4a4a;
+}
+ul {
+padding-left: 1.4em;
+margin-top: 0px;
+margin-bottom: 2.5rem;
+}
+li {
+margin-bottom: 0.4em;
+}
+blockquote {
+margin-left: 0px;
+margin-right: 0px;
+padding-left: 1em;
+padding-top: 0.8em;
+padding-bottom: 0.8em;
+padding-right: 0.8em;
+border-left: 5px solid #1d7484;
+margin-bottom: 2.5rem;
+background-color: #f1f1f1;
+}
+blockquote p {
+margin-bottom: 0;
+}
+img, video {
+height: auto;
+max-width: 100%;
+margin-top: 0px;
+margin-bottom: 2.5rem;
+}
+
+pre {
+background-color: #f1f1f1;
+display: block;
+padding: 1em;
+overflow-x: auto;
+margin-top: 0px;
+margin-bottom: 2.5rem;
+font-size: 0.9em;
+}
+code, kbd, samp {
+font-size: 0.9em;
+padding: 0 0.5em;
+background-color: #f1f1f1;
+white-space: pre-wrap;
+}
+pre > code {
+padding: 0;
+background-color: transparent;
+white-space: pre;
+font-size: 1em;
+}
+
+table {
+text-align: justify;
+width: 100%;
+border-collapse: collapse;
+margin-bottom: 2rem;
+}
+td, th {
+padding: 0.5em;
+border-bottom: 1px solid #f1f1f1;
+}
+
+input, textarea {
+border: 1px solid #4a4a4a;
+}
+input:focus, textarea:focus {
+border: 1px solid #1d7484;
+}
+textarea {
+width: 100%;
+}
+.button, button,
+input[type=submit],
+input[type=reset],
+input[type=button],
+input[type=file]::file-selector-button {
+display: inline-block;
+padding: 5px 10px;
+text-align: center;
+text-decoration: none;
+white-space: nowrap;
+background-color: #1d7484;
+color: #f9f9f9;
+border-radius: 1px;
+border: 1px solid #1d7484;
+cursor: pointer;
+box-sizing: border-box;
+}
+.button:hover, button:hover,
+input[type=submit]:hover,
+input[type=reset]:hover,
+input[type=button]:hover,
+input[type=file]::file-selector-button:hover {
+background-color: #982c61;
+color: #f9f9f9;
+outline: 0;
+}
+.button[disabled], button[disabled],
+input[type=submit][disabled],
+input[type=reset][disabled],
+input[type=button][disabled],
+input[type=file][disabled] {
+cursor: default;
+opacity: 0.5;
+}
+.button:focus-visible, button:focus-visible,
+input[type=submit]:focus-visible,
+input[type=reset]:focus-visible,
+input[type=button]:focus-visible,
+input[type=file]:focus-visible {
+outline-style: solid;
+outline-width: 2px;
+}
+textarea, select, input {
+color: #4a4a4a;
+padding: 6px 10px; 
+margin-bottom: 10px;
+background-color: #f1f1f1;
+border: 1px solid #f1f1f1;
+border-radius: 4px;
+box-shadow: none;
+box-sizing: border-box;
+}
+textarea:focus, select:focus, input:focus {
+border: 1px solid #1d7484;
+outline: 0;
+}
+input[type=checkbox]:focus {
+outline: 1px dotted #1d7484;
+}
+label, legend, fieldset {
+display: block;
+margin-bottom: 0.5rem;
+font-weight: 600;
+}
+</style>
+  <style type="text/css">
+header { border-bottom: 2px solid #eee; margin-bottom: 2em; }
+h1.title { font-weight: bold;
+border: none; }
+@media (min-width: 1200px) {
+#TOC {
+position: fixed !important;
+left: 20px !important; top: 20px !important;
+width: 250px !important;
+height: 90vh !important;
+overflow-y: auto !important;
+font-size: 0.8em !important;
+border-right: 1px solid #eee !important;
+padding-right: 10px !important;
+}
+body {
+margin-left: 300px !important;
+max-width: 800px !important;
+}
+}
+</style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">MultiGPU Dialect Operations</h1>
+</header>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#mgpu.all_gather-multigpuallgatherop"><code>mgpu.all_gather</code> (multigpu::AllGatherOp)</a></li>
+<li><a href="#mgpu.all_reduce-multigpuallreduceop"><code>mgpu.all_reduce</code> (multigpu::AllReduceOp)</a></li>
+<li><a href="#mgpu.alloc-multigpuallocop"><code>mgpu.alloc</code> (multigpu::AllocOp)</a></li>
+<li><a href="#mgpu.broadcast-multigpubroadcastop"><code>mgpu.broadcast</code> (multigpu::BroadcastOp)</a></li>
+<li><a href="#mgpu.create_communicator-multigpucreatecommunicatorop"><code>mgpu.create_communicator</code> (multigpu::CreateCommunicatorOp)</a></li>
+<li><a href="#mgpu.create_stream-multigpucreatestreamop"><code>mgpu.create_stream</code> (multigpu::CreateStreamOp)</a></li>
+<li><a href="#mgpu.destroy_stream-multigpudestroystreamop"><code>mgpu.destroy_stream</code> (multigpu::DestroyStreamOp)</a></li>
+<li><a href="#mgpu.free-multigpufreeop"><code>mgpu.free</code> (multigpu::FreeOp)</a></li>
+<li><a href="#mgpu.get_device-multigpugetdeviceop"><code>mgpu.get_device</code> (multigpu::GetDeviceOp)</a></li>
+<li><a href="#mgpu.launch-multigpulaunchop"><code>mgpu.launch</code> (multigpu::LaunchOp)</a></li>
+<li><a href="#mgpu.memcpy-multigpumemcpyop"><code>mgpu.memcpy</code> (multigpu::MemcpyOp)</a></li>
+<li><a href="#mgpu.recv-multigpurecvop"><code>mgpu.recv</code> (multigpu::RecvOp)</a></li>
+<li><a href="#mgpu.reduce_scatter-multigpureducescatterop"><code>mgpu.reduce_scatter</code> (multigpu::ReduceScatterOp)</a></li>
+<li><a href="#mgpu.send-multigpusendop"><code>mgpu.send</code> (multigpu::SendOp)</a></li>
+<li><a href="#mgpu.stream_wait-multigpustreamwaitop"><code>mgpu.stream_wait</code> (multigpu::StreamWaitOp)</a></li>
+<li><a href="#mgpu.sync_device-multigpusyncdeviceop"><code>mgpu.sync_device</code> (multigpu::SyncDeviceOp)</a></li>
+<li><a href="#mgpu.sync_stream-multigpusyncstreamop"><code>mgpu.sync_stream</code> (multigpu::SyncStreamOp)</a></li>
+<li><a href="#mgpu.terminator-multigputerminatorop"><code>mgpu.terminator</code> (multigpu::TerminatorOp)</a></li>
+</ul>
+</nav>
+<!-- Autogenerated by mlir-tblgen; don't manually edit -->
+<h3 id="mgpu.all_gather-multigpuallgatherop"><code>mgpu.all_gather</code> (multigpu::AllGatherOp)</h3>
+<p><em>All-gather across all ranks in a communicator</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.all_gather` $sendBuf `,` $recvBuf `,` $comm
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($sendBuf) `,` type($recvBuf) `,` type($comm)</code></pre>
+<p>Each rank contributes <code>sendBuf</code>; every rank receives the concatenation of all contributions into <code>recvBuf</code>. The leading dimension of <code>recvBuf</code> must equal N x the corresponding dimension of <code>sendBuf</code>, where N is the number of ranks. Element types must match.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>sendBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>recvBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.all_reduce-multigpuallreduceop"><code>mgpu.all_reduce</code> (multigpu::AllReduceOp)</h3>
+<p><em>All-reduce across all ranks in a communicator</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.all_reduce` $sendBuf `,` $recvBuf `,` $comm `,` $op
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($sendBuf) `,` type($recvBuf) `,` type($comm)</code></pre>
+<p>Each rank contributes <code>sendBuf</code> and receives the element-wise reduction into <code>recvBuf</code>. <code>op</code> names the reduction operation (e.g. “sum”, “max”, “min”, “prod”). Send and receive buffers must have the same type; in-place reduction (sendBuf == recvBuf) is permitted.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="attributes">Attributes:</h4>
+<table>
+<tr>
+<th>
+Attribute
+</th>
+<th>
+MLIR Type
+</th>
+<th>
+Description
+</th>
+</tr>
+<tr>
+<td>
+<code>op</code>
+</td>
+<td>
+::mlir::StringAttr
+</td>
+<td>
+string attribute
+</td>
+</tr>
+</table>
+<h4 id="operands-1">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>sendBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>recvBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.alloc-multigpuallocop"><code>mgpu.alloc</code> (multigpu::AllocOp)</h3>
+<p><em>Allocate device memory</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.alloc` $device attr-dict `:` type($device) `-&gt;` type($ptr)</code></pre>
+<p>Allocates memory on the given device. The shape and element type of the result memref fully determine the allocation size.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-2">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h4 id="results">Results:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Result</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>ptr</code></td>
+<td>memref of any type values</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.broadcast-multigpubroadcastop"><code>mgpu.broadcast</code> (multigpu::BroadcastOp)</h3>
+<p><em>Broadcast from a root rank to all ranks</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.broadcast` $buf `,` $comm `,` $rootRank
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($buf) `,` type($comm)</code></pre>
+<p>The root rank’s <code>buf</code> is copied to every other rank’s <code>buf</code>. All ranks must call this op with the same root and buffer shape.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-3">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>buf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>rootRank</code></td>
+<td>index</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.create_communicator-multigpucreatecommunicatorop"><code>mgpu.create_communicator</code> (multigpu::CreateCommunicatorOp)</h3>
+<p><em>Create a communicator over a set of devices</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.create_communicator` $devices attr-dict `:` type($devices) `-&gt;` type($comm)</code></pre>
+<p>The device list must contain at least one device and must not contain duplicates. The ordering of devices determines each device’s rank within the communicator.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-4">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>devices</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h4 id="results-1">Results:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Result</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.create_stream-multigpucreatestreamop"><code>mgpu.create_stream</code> (multigpu::CreateStreamOp)</h3>
+<p><em>Create a new stream on a device</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.create_stream` $device attr-dict `:` type($device) `-&gt;` type($stream)</code></pre>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-5">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h4 id="results-2">Results:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Result</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.destroy_stream-multigpudestroystreamop"><code>mgpu.destroy_stream</code> (multigpu::DestroyStreamOp)</h3>
+<p><em>Destroy a stream</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.destroy_stream` $stream attr-dict `:` type($stream)</code></pre>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-6">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.free-multigpufreeop"><code>mgpu.free</code> (multigpu::FreeOp)</h3>
+<p><em>Free device memory</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.free` $ptr `,` $device attr-dict `:` type($ptr) `,` type($device)</code></pre>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-7">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>ptr</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.get_device-multigpugetdeviceop"><code>mgpu.get_device</code> (multigpu::GetDeviceOp)</h3>
+<p><em>Get a handle to a GPU device by index</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.get_device` $index attr-dict `:` type($device)</code></pre>
+<p>Returns a handle to the device at the given index. The index must be in range [0, number_of_devices). Behavior is undefined otherwise.</p>
+<p>Traits: <code>AlwaysSpeculatableImplTrait</code></p>
+<p>Interfaces: <code>ConditionallySpeculatable</code>, <code>NoMemoryEffect (MemoryEffectOpInterface)</code></p>
+<p>Effects: <code>MemoryEffects::Effect{}</code></p>
+<h4 id="operands-8">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>index</code></td>
+<td>index</td>
+</tr>
+</tbody>
+</table>
+<h4 id="results-3">Results:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Result</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.launch-multigpulaunchop"><code>mgpu.launch</code> (multigpu::LaunchOp)</h3>
+<p><em>Launch a kernel on a device</em></p>
+<p>Launches the single-block region as a kernel on the given device.</p>
+<p><code>grid</code> specifies the number of blocks in each dimension (up to 3D). <code>block</code> specifies the number of threads per block in each dimension (up to 3D). Both must have the same length (1-3). Operand segment sizes are recorded by the <code>AttrSizedOperandSegments</code> trait.</p>
+<p>If <code>stream</code> is provided the kernel is enqueued on that stream (async); otherwise it executes synchronously.</p>
+<p>Traits: <code>AttrSizedOperandSegments</code>, <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-9">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>grid</code></td>
+<td>index</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>block</code></td>
+<td>index</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.memcpy-multigpumemcpyop"><code>mgpu.memcpy</code> (multigpu::MemcpyOp)</h3>
+<p><em>Copy memory between devices</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.memcpy` $dst `,` $src `,` $dstDevice `,` $srcDevice
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($dst) `,` type($src) `,` type($dstDevice) `,` type($srcDevice)</code></pre>
+<p>Copies the contents of <code>src</code> to <code>dst</code>. The source and destination memrefs must have the same element type and total number of elements; this is verified.</p>
+<p>If <code>stream</code> is provided the copy is enqueued on that stream (async); otherwise it executes synchronously.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-10">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>dst</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>src</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>dstDevice</code></td>
+<td>device handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>srcDevice</code></td>
+<td>device handle</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.recv-multigpurecvop"><code>mgpu.recv</code> (multigpu::RecvOp)</h3>
+<p><em>Point-to-point receive</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.recv` $buf `,` $comm `,` $srcRank
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($buf) `,` type($comm)</code></pre>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-11">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>buf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>srcRank</code></td>
+<td>index</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.reduce_scatter-multigpureducescatterop"><code>mgpu.reduce_scatter</code> (multigpu::ReduceScatterOp)</h3>
+<p><em>Reduce-scatter across all ranks in a communicator</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.reduce_scatter` $sendBuf `,` $recvBuf `,` $comm `,` $op
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($sendBuf) `,` type($recvBuf) `,` type($comm)</code></pre>
+<p>The inverse of AllGatherOp. Each rank contributes <code>sendBuf</code>; the element-wise reduction is computed and the result is scattered so that rank i receives the i-th slice into <code>recvBuf</code>. <code>op</code> names the reduction.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="attributes-1">Attributes:</h4>
+<table>
+<tr>
+<th>
+Attribute
+</th>
+<th>
+MLIR Type
+</th>
+<th>
+Description
+</th>
+</tr>
+<tr>
+<td>
+<code>op</code>
+</td>
+<td>
+::mlir::StringAttr
+</td>
+<td>
+string attribute
+</td>
+</tr>
+</table>
+<h4 id="operands-12">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>sendBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>recvBuf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.send-multigpusendop"><code>mgpu.send</code> (multigpu::SendOp)</h3>
+<p><em>Point-to-point send</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.send` $buf `,` $comm `,` $dstRank
+              (`stream` $stream^ `:` type($stream))?
+              attr-dict `:` type($buf) `,` type($comm)</code></pre>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-13">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>buf</code></td>
+<td>memref of any type values</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>comm</code></td>
+<td>communicator handle</td>
+</tr>
+<tr class="odd">
+<td style="text-align: center;"><code>dstRank</code></td>
+<td>index</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.stream_wait-multigpustreamwaitop"><code>mgpu.stream_wait</code> (multigpu::StreamWaitOp)</h3>
+<p><em>Make one stream wait on another</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.stream_wait` $waitingStream `,` $waitOnStreams attr-dict `:` type($waitingStream) `,` type($waitOnStreams)</code></pre>
+<p>Records the current state of each stream in <code>waitOnStreams</code> and makes <code>waitingStream</code> wait on all of them. Work submitted to <code>waitingStream</code> after this op will not begin until all recorded work on the waited-on streams has completed. The waiting stream and the waited-on streams may reside on different devices (cross-device stream synchronization).</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-14">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>waitingStream</code></td>
+<td>stream handle</td>
+</tr>
+<tr class="even">
+<td style="text-align: center;"><code>waitOnStreams</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.sync_device-multigpusyncdeviceop"><code>mgpu.sync_device</code> (multigpu::SyncDeviceOp)</h3>
+<p><em>Synchronize all streams on a device</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.sync_device` $device attr-dict `:` type($device)</code></pre>
+<p>Blocks the host until all work submitted to any stream on the given device has completed.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-15">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>device</code></td>
+<td>device handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.sync_stream-multigpusyncstreamop"><code>mgpu.sync_stream</code> (multigpu::SyncStreamOp)</h3>
+<p><em>Synchronize a single stream</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.sync_stream` $stream attr-dict `:` type($stream)</code></pre>
+<p>Blocks the host until all work submitted to the given stream has completed.</p>
+<p>Traits: <code>RecursiveMemoryEffects</code></p>
+<h4 id="operands-16">Operands:</h4>
+<table>
+<thead>
+<tr class="header">
+<th style="text-align: center;">Operand</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: center;"><code>stream</code></td>
+<td>stream handle</td>
+</tr>
+</tbody>
+</table>
+<h3 id="mgpu.terminator-multigputerminatorop"><code>mgpu.terminator</code> (multigpu::TerminatorOp)</h3>
+<p><em>Terminator for mgpu launch regions.</em></p>
+<p>Syntax:</p>
+<pre><code>operation ::= `mgpu.terminator` attr-dict</code></pre>
+<p>A terminator operation for regions that appear in the body of <code>mgpu.launch</code> operation. These regions are not expected to return any value so the terminator takes no operands.</p>
+<p>Traits: <code>AlwaysSpeculatableImplTrait</code>, <code>HasParent&lt;LaunchOp&gt;</code>, <code>Terminator</code></p>
+<p>Interfaces: <code>ConditionallySpeculatable</code>, <code>NoMemoryEffect (MemoryEffectOpInterface)</code></p>
+<p>Effects: <code>MemoryEffects::Effect{}</code></p>
+</body>
+</html>

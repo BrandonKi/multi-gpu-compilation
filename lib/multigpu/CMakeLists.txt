@@ -1,0 +1,27 @@
+add_mlir_dialect_library(MLIRMultiGPU
+MultiGpuDialect.cpp
+MultiGpuOps.cpp
+IdentityPass.cpp
+MultiGpuToGpuConversion.cpp
+MultiGpuToCudaConversion.cpp
+
+ADDITIONAL_HEADER_DIRS
+${PROJECT_SOURCE_DIR}/include/multigpu
+${PROJECT_SOURCE_DIR}/include
+
+DEPENDS
+MLIRMultiGpuOpsIncGen
+
+LINK_LIBS PUBLIC
+MLIRIR
+MLIRMemRefDialect
+MLIRLLVMDialect
+MLIROpenMPDialect
+MLIRAffineDialect
+MLIRSupport
+MLIRSCFTransforms
+MLIRArithDialect
+MLIRFuncDialect
+MLIRTransformUtils
+MLIRGPUDialect
+)

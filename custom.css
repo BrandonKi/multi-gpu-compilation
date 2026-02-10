@@ -1,0 +1,29 @@
+/* custom.css */
+header { 
+  border-bottom: 2px solid #eee; 
+  margin-bottom: 2em; 
+}
+
+h1.title { 
+  font-weight: bold;
+  border: none; 
+}
+
+@media (min-width: 1200px) {
+  #TOC {
+    position: fixed !important;
+    left: 20px !important; 
+    top: 20px !important;
+    width: 250px !important;
+    height: 90vh !important;
+    overflow-y: auto !important;
+    font-size: 0.8em !important;
+    border-right: 1px solid #eee !important;
+    padding-right: 10px !important;
+  }
+  body {
+    margin-left: 300px !important;
+    max-width: 800px !important;
+  }
+}
+
