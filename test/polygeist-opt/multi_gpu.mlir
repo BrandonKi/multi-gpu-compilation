@@ -193,8 +193,8 @@ func.func @test_all_reduce() {
   %send = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
   %recv = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
 
-  // CHECK:       mgpu.all_reduce %[[send:.*]], %[[recv:.*]], %[[comm:.*]], "sum" : memref<128xf32>, memref<128xf32>, !mgpu.communicator
-  mgpu.all_reduce %send, %recv, %comm, "sum" : memref<128xf32>, memref<128xf32>, !mgpu.communicator
+  // CHECK:       mgpu.all_reduce %[[send:.*]], %[[recv:.*]], %[[comm:.*]], sum : memref<128xf32>, memref<128xf32>, !mgpu.communicator
+  mgpu.all_reduce %send, %recv, %comm, sum : memref<128xf32>, memref<128xf32>, !mgpu.communicator
 
   return
 }
@@ -210,8 +210,8 @@ func.func @test_all_reduce_async() {
   %send   = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
   %recv   = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
 
-  // CHECK:       mgpu.all_reduce %[[send:.*]], %[[recv:.*]], %[[comm:.*]], "max" stream %[[st:.*]] : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
-  mgpu.all_reduce %send, %recv, %comm, "max" stream %stream : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
+  // CHECK:       mgpu.all_reduce %[[send:.*]], %[[recv:.*]], %[[comm:.*]], max stream %[[st:.*]] : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
+  mgpu.all_reduce %send, %recv, %comm, max stream %stream : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
 
   mgpu.destroy_stream %stream : !mgpu.stream
   return
@@ -243,8 +243,8 @@ func.func @test_reduce_scatter() {
   %send = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
   %recv = mgpu.alloc %dev0 : !mgpu.device -> memref<64xf32>
 
-  // CHECK:       mgpu.reduce_scatter %[[send:.*]], %[[recv:.*]], %[[comm:.*]], "sum" : memref<128xf32>, memref<64xf32>, !mgpu.communicator
-  mgpu.reduce_scatter %send, %recv, %comm, "sum" : memref<128xf32>, memref<64xf32>, !mgpu.communicator
+  // CHECK:       mgpu.reduce_scatter %[[send:.*]], %[[recv:.*]], %[[comm:.*]], sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
+  mgpu.reduce_scatter %send, %recv, %comm, sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
 
   return
 }

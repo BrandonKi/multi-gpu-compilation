@@ -23,16 +23,249 @@
 #include <set>
 #include <memory>
 
+#include "mlir/IR/DialectImplementation.h"
 #include "multigpu/MultiGpuOps.h"
 
 #define GET_TYPEDEF_CLASSES
 #include "multigpu/MultiGpuOpsTypes.cpp.inc"
+
+#include "multigpu/MultiGpuEnums.cpp.inc"
+
+// Note: MultiGpuAttrDefs.cpp.inc is included in MultiGpuDialect.cpp before initialize()
+// to ensure storage types are complete for addAttributes. The verify implementation
+// below can still access the attribute class since it's declared in the header.
 
 #define GET_OP_CLASSES
 #include "multigpu/MultiGpuOps.cpp.inc"
 
 using namespace mlir;
 using namespace multigpu;
+
+void DeviceConfigOp::print(OpAsmPrinter &p) {
+  p << ' ';
+  p.printSymbolName(getSymNameAttr().getValue());
+  p << ' ';
+  // Print attribute with type to ensure dialect prefix is included
+  p.printAttribute(getConfigAttr());
+  p.printOptionalAttrDict((*this)->getAttrs(), {"sym_name", "config"});
+}
+
+ParseResult DeviceConfigOp::parse(OpAsmParser &parser, OperationState &result) {
+  StringAttr symName;
+  if (parser.parseSymbolName(symName, "sym_name", result.attributes))
+    return failure();
+  
+  Attribute configAttr;
+  if (parser.parseAttribute(configAttr, "config", result.attributes))
+    return failure();
+  
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  
+  return success();
+}
+
+void AllReduceOp::print(OpAsmPrinter &p) {
+  p << ' ';
+  p << getSendBuf();
+  p << ",";
+  p << ' ';
+  p << getRecvBuf();
+  p << ",";
+  p << ' ';
+  p << getComm();
+  p << ",";
+  p << ' ';
+  // Print enum attribute without quotes
+  switch (getReductionKind()) {
+  case ReductionKind::Sum:
+    p << "sum";
+    break;
+  case ReductionKind::Prod:
+    p << "prod";
+    break;
+  case ReductionKind::Min:
+    p << "min";
+    break;
+  case ReductionKind::Max:
+    p << "max";
+    break;
+  }
+  if (getStream()) {
+    p << ' ' << "stream";
+    p << ' ';
+    p << getStream();
+    p << ' ' << ":";
+    p << ' ';
+    p << getStream().getType();
+  }
+  p.printOptionalAttrDict((*this)->getAttrs(), {"reductionKind", "stream"});
+  p << ' ' << ":";
+  p << ' ';
+  p << getSendBuf().getType();
+  p << ",";
+  p << ' ';
+  p << getRecvBuf().getType();
+  p << ",";
+  p << ' ';
+  p << getComm().getType();
+}
+
+ParseResult AllReduceOp::parse(OpAsmParser &parser, OperationState &result) {
+  OpAsmParser::UnresolvedOperand sendBuf, recvBuf, comm;
+  if (parser.parseOperand(sendBuf) || parser.parseComma() ||
+      parser.parseOperand(recvBuf) || parser.parseComma() ||
+      parser.parseOperand(comm) || parser.parseComma())
+    return failure();
+  
+  // Parse enum attribute (quoted or unquoted)
+  StringRef reductionStr;
+  std::string quotedStr;
+  if (succeeded(parser.parseOptionalString(&quotedStr))) {
+    // Quoted string
+    reductionStr = quotedStr;
+  } else if (parser.parseKeyword(&reductionStr)) {
+    return failure();
+  }
+  
+  ReductionKind reductionKind;
+  if (reductionStr == "sum")
+    reductionKind = ReductionKind::Sum;
+  else if (reductionStr == "prod")
+    reductionKind = ReductionKind::Prod;
+  else if (reductionStr == "min")
+    reductionKind = ReductionKind::Min;
+  else if (reductionStr == "max")
+    reductionKind = ReductionKind::Max;
+  else
+    return parser.emitError(parser.getNameLoc(), "unknown reduction kind: ") << reductionStr;
+  
+  result.addAttribute("reductionKind", ReductionKindAttr::get(parser.getContext(), reductionKind));
+  
+  OpAsmParser::UnresolvedOperand stream;
+  Type streamType;
+  bool hasStream = succeeded(parser.parseOptionalKeyword("stream")) && 
+                   succeeded(parser.parseOperand(stream)) &&
+                   succeeded(parser.parseColonType(streamType));
+  
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  
+  SmallVector<Type> types;
+  if (parser.parseColonTypeList(types) || types.size() != 3)
+    return failure();
+  
+  if (parser.resolveOperand(sendBuf, types[0], result.operands) ||
+      parser.resolveOperand(recvBuf, types[1], result.operands) ||
+      parser.resolveOperand(comm, types[2], result.operands))
+    return failure();
+  
+  if (hasStream && parser.resolveOperand(stream, streamType, result.operands))
+    return failure();
+  
+  return success();
+}
+
+void ReduceScatterOp::print(OpAsmPrinter &p) {
+  p << ' ';
+  p << getSendBuf();
+  p << ",";
+  p << ' ';
+  p << getRecvBuf();
+  p << ",";
+  p << ' ';
+  p << getComm();
+  p << ",";
+  p << ' ';
+  // Print enum attribute without quotes
+  switch (getReductionKind()) {
+  case ReductionKind::Sum:
+    p << "sum";
+    break;
+  case ReductionKind::Prod:
+    p << "prod";
+    break;
+  case ReductionKind::Min:
+    p << "min";
+    break;
+  case ReductionKind::Max:
+    p << "max";
+    break;
+  }
+  if (getStream()) {
+    p << ' ' << "stream";
+    p << ' ';
+    p << getStream();
+    p << ' ' << ":";
+    p << ' ';
+    p << getStream().getType();
+  }
+  p.printOptionalAttrDict((*this)->getAttrs(), {"reductionKind", "stream"});
+  p << ' ' << ":";
+  p << ' ';
+  p << getSendBuf().getType();
+  p << ",";
+  p << ' ';
+  p << getRecvBuf().getType();
+  p << ",";
+  p << ' ';
+  p << getComm().getType();
+}
+
+ParseResult ReduceScatterOp::parse(OpAsmParser &parser, OperationState &result) {
+  OpAsmParser::UnresolvedOperand sendBuf, recvBuf, comm;
+  if (parser.parseOperand(sendBuf) || parser.parseComma() ||
+      parser.parseOperand(recvBuf) || parser.parseComma() ||
+      parser.parseOperand(comm) || parser.parseComma())
+    return failure();
+  
+  // Parse enum attribute (quoted or unquoted)
+  StringRef reductionStr;
+  std::string quotedStr;
+  if (succeeded(parser.parseOptionalString(&quotedStr))) {
+    // Quoted string
+    reductionStr = quotedStr;
+  } else if (parser.parseKeyword(&reductionStr)) {
+    return failure();
+  }
+  
+  ReductionKind reductionKind;
+  if (reductionStr == "sum")
+    reductionKind = ReductionKind::Sum;
+  else if (reductionStr == "prod")
+    reductionKind = ReductionKind::Prod;
+  else if (reductionStr == "min")
+    reductionKind = ReductionKind::Min;
+  else if (reductionStr == "max")
+    reductionKind = ReductionKind::Max;
+  else
+    return parser.emitError(parser.getNameLoc(), "unknown reduction kind: ") << reductionStr;
+  
+  result.addAttribute("reductionKind", ReductionKindAttr::get(parser.getContext(), reductionKind));
+  
+  OpAsmParser::UnresolvedOperand stream;
+  Type streamType;
+  bool hasStream = succeeded(parser.parseOptionalKeyword("stream")) && 
+                   succeeded(parser.parseOperand(stream)) &&
+                   succeeded(parser.parseColonType(streamType));
+  
+  if (parser.parseOptionalAttrDict(result.attributes))
+    return failure();
+  
+  SmallVector<Type> types;
+  if (parser.parseColonTypeList(types) || types.size() != 3)
+    return failure();
+  
+  if (parser.resolveOperand(sendBuf, types[0], result.operands) ||
+      parser.resolveOperand(recvBuf, types[1], result.operands) ||
+      parser.resolveOperand(comm, types[2], result.operands))
+    return failure();
+  
+  if (hasStream && parser.resolveOperand(stream, streamType, result.operands))
+    return failure();
+  
+  return success();
+}
 
 void LaunchOp::print(OpAsmPrinter &p) {
     p << " " << getDevice();
@@ -104,3 +337,31 @@ mlir::ParseResult LaunchOp::parse(OpAsmParser &parser, OperationState &result) {
         parser.getBuilder().getDenseI32ArrayAttr({1, (int32_t)gridOperands.size(), (int32_t)blockOperands.size(), hasStream ? 1 : 0}));
     return success();
 }
+
+namespace mlir::multigpu {
+bool DeviceConfigAttr::hasDefaultDeviceIds() const {
+  return !getDeviceIds(); // Returns true if the OptionalParameter is null
+}
+
+int32_t DeviceConfigAttr::getSystemDeviceId(uint32_t r) const {
+  if (hasDefaultDeviceIds())
+    return static_cast<int32_t>(r);
+  return getDeviceIds()[r];
+}
+
+LogicalResult DeviceConfigAttr::verify(
+    function_ref<InFlightDiagnostic()> emitError, uint32_t numDevices,
+    DenseI32ArrayAttr deviceIds) {
+  // Verified: numDevices >= 1; len(deviceIds) == numDevices when present.
+  if (numDevices < 1) {
+    return emitError() << "numDevices must be >= 1, got " << numDevices;
+  }
+  if (deviceIds) {
+    if (static_cast<uint32_t>(deviceIds.size()) != numDevices) {
+      return emitError() << "deviceIds length (" << deviceIds.size()
+                         << ") must equal numDevices (" << numDevices << ")";
+    }
+  }
+  return success();
+}
+} // namespace mlir::multigpu

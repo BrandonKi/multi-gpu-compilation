@@ -1,4 +1,4 @@
-// RUN: polygeist-opt %s -multigpu-lowering | FileCheck %s
+// RUN: polygeist-opt %s -multigpu-to-gpu | FileCheck %s
 //
 // Test the MultiGPU lowering pass that removes simple no-op operations.
 

@@ -15,5 +15,10 @@
 #define GET_TYPEDEF_CLASSES
 #include "multigpu/MultiGpuOpsTypes.h.inc"
 
+#include "multigpu/MultiGpuEnums.h.inc"
+
+#define GET_ATTRDEF_CLASSES
+#include "multigpu/MultiGpuAttrDefs.h.inc"
+
 #define GET_OP_CLASSES
 #include "multigpu/MultiGpuOps.h.inc"
