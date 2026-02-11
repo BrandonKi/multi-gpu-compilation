@@ -69,6 +69,7 @@ int main(int argc, char **argv) {
   mlir::multigpu::registerIdentityPass();
   mlir::multigpu::registerMultiGpuToGpuConversionPass();
   mlir::multigpu::registerMultiGpuToCudaConversionPass();
+  mlir::multigpu::registerGpuToMultiGpuConversionPass();
   mlir::func::registerInlinerExtension(registry);
 
   // Register the standard passes we want.

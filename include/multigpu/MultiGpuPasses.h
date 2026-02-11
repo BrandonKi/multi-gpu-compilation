@@ -15,6 +15,9 @@ void registerMultiGpuToGpuConversionPass();
 std::unique_ptr<Pass> createMultiGpuToCudaConversionPass();
 void registerMultiGpuToCudaConversionPass();
 
+std::unique_ptr<Pass> createGpuToMultiGpuConversionPass();
+void registerGpuToMultiGpuConversionPass();
+
 }
 }
 
