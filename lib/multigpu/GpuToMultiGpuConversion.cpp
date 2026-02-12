@@ -5,6 +5,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -77,6 +78,21 @@ struct GpuToMultiGpuConversionPass
         registry.insert<arith::ArithDialect>();
     }
 
+    void insertDeviceConfigOp(ModuleOp& mod, MLIRContext *ctx) {
+        bool present = false;
+        mod.walk([&present](multigpu::DeviceConfigOp op) {
+            present = true;
+            return WalkResult::interrupt();
+        });
+        
+        if(!present) {
+            OpBuilder b(ctx);
+            b.setInsertionPointToStart(mod.getBody());
+            auto attr = multigpu::DeviceConfigAttr::get(ctx, /*numDevices=*/1, /*deviceIds=*/DenseI32ArrayAttr());
+            b.create<multigpu::DeviceConfigOp>(mod.getLoc(), b.getStringAttr("mgpu_device_config"), attr);
+        }
+    }
+
     void runOnOperation() override {
         ModuleOp module = getOperation();
         MLIRContext *context = &getContext();
@@ -96,6 +112,9 @@ struct GpuToMultiGpuConversionPass
         target.addLegalOp<gpu::BlockIdOp>();
         target.addLegalOp<gpu::BlockDimOp>();
         target.addLegalOp<gpu::GridDimOp>();
+        
+        // I guess this should be a rewrite pattern?
+        insertDeviceConfigOp(module, context);
 
         RewritePatternSet patterns(context);
         patterns.add<ConvertLaunchOp>(context);

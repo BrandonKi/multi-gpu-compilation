@@ -1,7 +1,9 @@
 // RUN: polygeist-opt %s -canonicalize-polygeist -gpu-to-multigpu | FileCheck %s
 //
-// Test converting two vecAdd GPU kernels to MultiGPU dialect
+// Test converting two vecAdd GPU kernels to MultiGPU dialect.
 
+// CHECK: module {
+// CHECK: mgpu.device_config @mgpu_device_config #mgpu.device_config<numDevices = 1>
 module {
   // CHECK-LABEL: func @vecAdd1
   func.func @vecAdd1(%a: memref<1024xf32>, %b: memref<1024xf32>, %c: memref<1024xf32>) {

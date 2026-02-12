@@ -5,6 +5,7 @@ IdentityPass.cpp
 MultiGpuToGpuConversion.cpp
 MultiGpuToCudaConversion.cpp
 GpuToMultiGpuConversion.cpp
+DeviceAllocationPass.cpp
 
 ADDITIONAL_HEADER_DIRS
 ${PROJECT_SOURCE_DIR}/include/multigpu

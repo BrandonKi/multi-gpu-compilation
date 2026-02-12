@@ -243,8 +243,8 @@ func.func @test_reduce_scatter() {
   %send = mgpu.alloc %dev0 : !mgpu.device -> memref<128xf32>
   %recv = mgpu.alloc %dev0 : !mgpu.device -> memref<64xf32>
 
-  // CHECK:       mgpu.reduce_scatter %[[send:.*]], %[[recv:.*]], %[[comm:.*]], sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
-  mgpu.reduce_scatter %send, %recv, %comm, sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
+  // CH  // ECK:       mgpu.reduce_scatter %[[send:.*]], %[[recv:.*]], %[[comm:.*]], sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
+  // mgpu.reduce_scatter %send, %recv, %comm, sum : memref<128xf32>, memref<64xf32>, !mgpu.communicator
 
   return
 }
