@@ -12,9 +12,6 @@
 using namespace mlir;
 using namespace multigpu;
 
-namespace mlir {
-namespace multigpu {
-
 struct IdentityPass
     : public PassWrapper<IdentityPass, OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(IdentityPass)
@@ -37,6 +34,9 @@ struct IdentityPass
         return "Does nothing...";
     }
 };
+
+namespace mlir {
+namespace multigpu {
 
 std::unique_ptr<Pass> createIdentityPass() {
     return std::make_unique<IdentityPass>();
