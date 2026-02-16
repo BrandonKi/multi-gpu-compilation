@@ -46,6 +46,7 @@ add_mlir_dialect_library(MLIRPolygeistTransforms
   MLIRMathDialect
   MLIRMathToLLVM
   MLIRMemRefDialect
+  MLIRMultiGPU
   MLIRNVVMDialect
   MLIRPass
   MLIRPolygeist

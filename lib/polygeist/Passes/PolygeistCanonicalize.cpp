@@ -27,6 +27,7 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
+#include "multigpu/MultiGpuPasses.h"
 #include "polygeist/Dialect.h"
 #include "polygeist/Ops.h"
 #include "polygeist/Passes/Passes.h"
@@ -67,6 +68,8 @@ struct PolygeistCanonicalizePass
       dialect->getCanonicalizationPatterns(owningPatterns);
     for (RegisteredOperationName op : context->getRegisteredOperations())
       op.getCanonicalizationPatterns(owningPatterns, context);
+    
+    multigpu::populateMultiGpuCanonicalizationPatterns(owningPatterns);
 
     patterns = std::make_shared<FrozenRewritePatternSet>(
         std::move(owningPatterns), disabledPatterns, enabledPatterns);

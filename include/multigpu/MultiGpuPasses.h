@@ -4,6 +4,8 @@
 #include "mlir/Pass/Pass.h"
 
 namespace mlir {
+class RewritePatternSet;
+
 namespace multigpu {
 
 std::unique_ptr<Pass> createIdentityPass();
@@ -17,6 +19,8 @@ void registerMultiGpuToLLVMConversionPass();
 
 std::unique_ptr<Pass> createDeviceAllocationPass();
 void registerDeviceAllocationPass();
+
+void populateMultiGpuCanonicalizationPatterns(RewritePatternSet &patterns);
 
 }
 }
