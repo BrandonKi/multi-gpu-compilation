@@ -2,9 +2,8 @@ add_mlir_dialect_library(MLIRMultiGPU
 MultiGpuDialect.cpp
 MultiGpuOps.cpp
 IdentityPass.cpp
-MultiGpuToGpuConversion.cpp
-MultiGpuToCudaConversion.cpp
 GpuToMultiGpuConversion.cpp
+MultiGpuToLLVMConversion.cpp
 DeviceAllocationPass.cpp
 
 ADDITIONAL_HEADER_DIRS

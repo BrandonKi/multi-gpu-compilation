@@ -45,7 +45,7 @@ struct DeviceAllocationPass : public PassWrapper<DeviceAllocationPass, Operation
             uint32_t assigned = nextDeviceIndex % numDevices;
             nextDeviceIndex++;
 
-            Value indexOperand = op.getIndex();
+            Value indexOperand = op.getDeviceIndex();
             auto constantOp = indexOperand.getDefiningOp<arith::ConstantIndexOp>();
             if (!constantOp) {
                 op.emitRemark("device allocation skips get_device with non-constant index");

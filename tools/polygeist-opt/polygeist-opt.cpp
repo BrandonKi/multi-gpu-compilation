@@ -67,9 +67,8 @@ int main(int argc, char **argv) {
 
   mlir::registerpolygeistPasses();
   mlir::multigpu::registerIdentityPass();
-  mlir::multigpu::registerMultiGpuToGpuConversionPass();
-  mlir::multigpu::registerMultiGpuToCudaConversionPass();
   mlir::multigpu::registerGpuToMultiGpuConversionPass();
+  mlir::multigpu::registerMultiGpuToLLVMConversionPass();
   mlir::multigpu::registerDeviceAllocationPass();
   mlir::func::registerInlinerExtension(registry);
 

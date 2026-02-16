@@ -103,6 +103,25 @@ mgpurtMemAlloc(uint64_t sizeBytes, cudaStream_t /*stream*/) {
   return reinterpret_cast<void *>(ptr);
 }
 
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtSetDevice(int32_t deviceId) {
+  return static_cast<int32_t>(cudaSetDevice(deviceId));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAllocOnDevice(
+    int32_t deviceId, uint64_t sizeBytes) {
+  CUDART_REPORT_IF_ERROR(cudaSetDevice(deviceId));
+  void *ptr;
+  CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
+  return ptr;
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtMemcpyPeer(
+    void *dst, int32_t dstDevice, const void *src, int32_t srcDevice,
+    size_t count) {
+  return static_cast<int32_t>(
+      cudaMemcpyPeer(dst, dstDevice, src, srcDevice, count));
+}
+
 extern "C" void mgpurtMemcpyErr(void *dst, void *src, size_t sizeBytes) {
   CUDART_REPORT_IF_ERROR(cudaMemcpy(dst, src, sizeBytes, cudaMemcpyDefault));
 }
@@ -111,6 +130,28 @@ extern "C" void mgpurtMemcpyAsyncErr(void *dst, void *src, size_t sizeBytes,
                                      cudaStream_t stream) {
   CUDART_REPORT_IF_ERROR(
       cudaMemcpyAsync(dst, src, sizeBytes, cudaMemcpyDefault, stream));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtMemFree(void *ptr,
+                                                        cudaStream_t /*stream*/) {
+  CUDART_REPORT_IF_ERROR(cudaFree(ptr));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtStreamCreate(void **stream) {
+  return static_cast<int32_t>(cudaStreamCreate(
+      reinterpret_cast<cudaStream_t *>(stream)));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
+mgpurtStreamDestroy(void *stream) {
+  return static_cast<int32_t>(
+      cudaStreamDestroy(reinterpret_cast<cudaStream_t>(stream)));
+}
+
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
+mgpurtStreamSynchronize(void *stream) {
+  return static_cast<int32_t>(
+      cudaStreamSynchronize(reinterpret_cast<cudaStream_t>(stream)));
 }
 
 //========= CUDA DRIVER API =========//

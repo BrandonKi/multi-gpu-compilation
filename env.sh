@@ -10,7 +10,7 @@ if [ -z "$LLVM_REPO" ]; then
 fi
 
 if [ -z "$MLIR_DIR" ]; then
-    export MLIR_DIR=$LLVM_REPO/lib/cmake/mlir
+    export MLIR_DIR=$LLVM_REPO/build2/lib/cmake/mlir
 fi
 
 if [ -z "$LLVM_SYMBOLIZER_PATH" ]; then

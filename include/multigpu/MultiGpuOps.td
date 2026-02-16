@@ -132,14 +132,14 @@ def DeviceConfig_Attr : Attr<CPred<"$_self.isa<::mlir::multigpu::DeviceConfigAtt
 
 def GetDeviceOp : MultiGpu_Op<"get_device", [Pure]> {
   let summary = "Get a handle to a GPU device by index";
-  let arguments = (ins Index:$index);
+  let arguments = (ins Index:$device_index);
   let results = (outs Device:$device);
   let description = [{
     Returns a handle to the device at the index.
     The index must be in the range [0, numDevices) specified by the `mgpu.device_config` attribute in the module.
   }];
   // mgpu.get_device %idx : !mgpu.device
-  let assemblyFormat = "$index attr-dict `:` type($device)";
+  let assemblyFormat = "$device_index attr-dict `:` type($device)";
 }
 
 def CreateStreamOp : MultiGpu_Op<"create_stream", [RecursiveMemoryEffects]> {
