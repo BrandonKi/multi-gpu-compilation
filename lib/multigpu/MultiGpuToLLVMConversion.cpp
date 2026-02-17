@@ -28,50 +28,49 @@
 using namespace mlir;
 using namespace mlir::multigpu;
 
-// Canonicalization: Remove redundant set_device calls with the same operand
-// 
-// remove consecutive set_device call if same operand as previous
-// 
+//
+// removes consecutive set_device call if same operand as previous
+//
 // ...
 // %4 = llvm.call @mgpurtSetDevice(%1) : (i32) -> i32
 // ...
 // %5 = llvm.call @mgpurtSetDevice(%1) : (i32) -> i32
 // ...
-// 
+//
 struct RemoveRedundantSetDeviceOp : public OpRewritePattern<LLVM::CallOp> {
-  using OpRewritePattern::OpRewritePattern;
+    using OpRewritePattern::OpRewritePattern;
 
-  LogicalResult matchAndRewrite(LLVM::CallOp op, PatternRewriter &rewriter) const override {
-    auto callee = op.getCallee();
-    if (!callee || *callee != "mgpurtSetDevice")
-      return failure();
+    LogicalResult matchAndRewrite(LLVM::CallOp op, PatternRewriter &rewriter) const override {
+        auto callee = op.getCallee();
+        if (!callee || *callee != "mgpurtSetDevice")
+            return failure();
 
-    if (op.getNumOperands() != 1)
-      return failure();
+        if (op.getNumOperands() != 1)
+            return failure();
 
-    Value deviceArg = op.getOperand(0);
-    Operation *currentOp = op->getPrevNode();
-    
-    while (currentOp) {
-      auto prevCall = dyn_cast<LLVM::CallOp>(currentOp);
-      if (prevCall) {
-        auto prevCallee = prevCall.getCallee();
-        if (prevCallee && *prevCallee == "mgpurtSetDevice") {
-          if (prevCall.getNumOperands() == 1) {
-            Value prevDeviceArg = prevCall.getOperand(0);
-            if (prevDeviceArg == deviceArg) {
-              rewriter.eraseOp(op);
-              return success();
+        Value deviceArg = op.getOperand(0);
+        Operation *currentOp = op->getPrevNode();
+
+        while (currentOp) {
+            auto prevCall = dyn_cast<LLVM::CallOp>(currentOp);
+            if (prevCall) {
+                auto prevCallee = prevCall.getCallee();
+                if (prevCallee && *prevCallee == "mgpurtSetDevice") {
+                    if (prevCall.getNumOperands() == 1) {
+                        Value prevDeviceArg = prevCall.getOperand(0);
+                        if (prevDeviceArg == deviceArg) {
+                            rewriter.eraseOp(op);
+                            return success();
+                        }
+                    }
+                    return failure();
+                }
             }
-          }
-          return failure();
+            currentOp = currentOp->getPrevNode();
         }
-      }
-      currentOp = currentOp->getPrevNode();
-    }
 
-    return failure();
-  }
+        return failure();
+    }
 };
 
 // namespace mlir::multigpu {
@@ -496,7 +495,6 @@ void registerMultiGpuToLLVMConversionPass() { PassRegistration<MultiGpuToLLVMCon
 void populateMultiGpuCanonicalizationPatterns(RewritePatternSet &patterns) {
     patterns.add<RemoveRedundantSetDeviceOp>(patterns.getContext());
 }
-
 
 } // namespace multigpu
 } // namespace mlir
