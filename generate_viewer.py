@@ -98,7 +98,7 @@ def generate_html(input_file, output_file):
 
         <script src="https://unpkg.com/diff@5.2.0/dist/diff.min.js"></script>
         <script>
-            const DIFF_MODES = ["Simple", "Library", "Char", "Op-Aware"];
+            const DIFF_MODES = ["Simple", "Library", "Char", "Smart"];
 
             let diffMode = localStorage.getItem("mlir-diff-mode") || "Simple";
             if (!DIFF_MODES.includes(diffMode)) {
@@ -338,7 +338,6 @@ def generate_html(input_file, output_file):
             }
 
             function libraryDiff(currentBody, prevBody) {
-                console.log("Calculating diff with library...");
                 if (!prevBody) {
                     return currentBody.split('\n').map(
                         l => `<span class="line">${escapeHtml(l) || ' '}</span>`
@@ -369,7 +368,7 @@ def generate_html(input_file, output_file):
             function getDiffedBody(currentBody, prevBody) {
                 if(diffMode === "Char") {
                     return charDiff(currentBody, prevBody);
-                } else if(diffMode === "Op-Aware") {
+                } else if(diffMode === "Smart") {
                     return opAwareDiff(currentBody, prevBody);
                 } else if(diffMode === "Library") {
                     return libraryDiff(currentBody, prevBody);
