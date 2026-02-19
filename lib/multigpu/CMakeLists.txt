@@ -25,4 +25,5 @@ MLIRArithDialect
 MLIRFuncDialect
 MLIRTransformUtils
 MLIRGPUDialect
+MLIRPolygeist
 )
