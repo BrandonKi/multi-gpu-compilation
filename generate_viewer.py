@@ -111,9 +111,35 @@ def generate_html(input_file, output_file):
             }
 
             const data = DATA_PLACEHOLDER;
+            const STORAGE_INDEX_KEY = "mlir-viewer-pass-index";
+            const STORAGE_TITLE_KEY = "mlir-viewer-pass-title";
+            const STORAGE_COUNT_KEY = "mlir-viewer-pass-count";
             let collapsedFunctions = new Set();
             let pinnedFunction = null;
             let currentIndex = -1;
+
+            function saveSelectedPass(index) {
+                if (index >= 0 && index < data.length) {
+                    localStorage.setItem(STORAGE_INDEX_KEY, String(index));
+                    localStorage.setItem(STORAGE_TITLE_KEY, data[index].title);
+                    localStorage.setItem(STORAGE_COUNT_KEY, String(data.length));
+                }
+            }
+
+            function initPassSelection() {
+                const savedIndex = localStorage.getItem(STORAGE_INDEX_KEY);
+                const savedTitle = localStorage.getItem(STORAGE_TITLE_KEY);
+                const savedCount = localStorage.getItem(STORAGE_COUNT_KEY);
+                const countMatches = savedCount != null && parseInt(savedCount, 10) === data.length;
+                const idx = savedIndex != null ? parseInt(savedIndex, 10) : 0;
+                const matches = countMatches && Number.isInteger(idx) && idx >= 0 && idx < data.length && data[idx].title === savedTitle;
+                if (matches) {
+                    showPass(idx);
+                } else {
+                    showPass(0);
+                    saveSelectedPass(0);
+                }
+            }
             
             function escapeHtml(text) {
                 return text ? text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;") : "";
@@ -441,6 +467,11 @@ def generate_html(input_file, output_file):
                 } else {
                     document.getElementById('content').scrollTop = 0;
                 }
+                saveSelectedPass(index);
+            }
+
+            if (data.length > 0) {
+                initPassSelection();
             }
         </script>
     </body>
