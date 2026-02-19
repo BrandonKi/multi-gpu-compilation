@@ -75,7 +75,14 @@ extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtMemcpyAsyncErr(
       hipMemcpyAsync(dst, src, sizeBytes, hipMemcpyDefault, stream));
 }
 
-extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtDeviceSynchronizeErr(void) {
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t mgpurtGetDevice(void) {
+  int device = -1;
+  ERR_HIP_REPORT_IF_ERROR(hipGetDevice(&device));
+  return static_cast<int32_t>(device);
+}
+
+extern "C" MLIR_HIP_WRAPPERS_EXPORT int32_t
+mgpurtDeviceSynchronizeErr(int32_t /*deviceId*/) {
   return ERR_HIP_REPORT_IF_ERROR(hipDeviceSynchronize());
 }
 

@@ -14,7 +14,8 @@
 #include <numeric>
 #include <vector>
 
-extern "C" int32_t mgpurtDeviceSynchronizeErr(void);
+extern "C" int32_t mgpurtGetDevice(void);
+extern "C" int32_t mgpurtDeviceSynchronizeErr(int32_t deviceId);
 
 #ifdef _WIN32
 #define MLIR_PGO_WRAPPERS_EXPORT __declspec(dllexport) __attribute__((weak))
@@ -57,7 +58,7 @@ public:
   }
   void end() {
     struct timespec end_clock;
-    mgpurtDeviceSynchronizeErr();
+    mgpurtDeviceSynchronizeErr(mgpurtGetDevice());
     clock_gettime(CLOCK_MONOTONIC, &end_clock);
 
     auto kernelId = getKernelId();
@@ -93,7 +94,7 @@ public:
     }
     states[kernelId] = state;
     // Start timing
-    mgpurtDeviceSynchronizeErr();
+    mgpurtDeviceSynchronizeErr(mgpurtGetDevice());
     clock_gettime(CLOCK_MONOTONIC, &state->start_clock);
   }
 

@@ -49,26 +49,18 @@ struct RemoveRedundantSetDeviceOp : public OpRewritePattern<LLVM::CallOp> {
             return failure();
 
         Value deviceArg = op.getOperand(0);
-        Operation *currentOp = op->getPrevNode();
-
-        while (currentOp) {
-            auto prevCall = dyn_cast<LLVM::CallOp>(currentOp);
-            if (prevCall) {
-                auto prevCallee = prevCall.getCallee();
-                if (prevCallee && *prevCallee == "mgpurtSetDevice") {
-                    if (prevCall.getNumOperands() == 1) {
-                        Value prevDeviceArg = prevCall.getOperand(0);
-                        if (prevDeviceArg == deviceArg) {
-                            rewriter.eraseOp(op);
-                            return success();
-                        }
-                    }
-                    return failure();
-                }
-            }
-            currentOp = currentOp->getPrevNode();
+        for (Operation *prevOp = op->getPrevNode(); prevOp; prevOp = prevOp->getPrevNode()) {
+            auto prevCall = dyn_cast<LLVM::CallOp>(prevOp);
+            if (!prevCall)
+                continue;
+            auto prevCallee = prevCall.getCallee();
+            if (!prevCallee || *prevCallee != "mgpurtSetDevice" || prevCall.getNumOperands() != 1)
+                continue;
+            if (prevCall.getOperand(0) != deviceArg)
+                return failure();
+            rewriter.eraseOp(op);
+            return success();
         }
-
         return failure();
     }
 };
@@ -80,6 +72,37 @@ static LLVM::LLVMFuncOp getOrCreateFunc(ModuleOp module, StringRef name, LLVM::L
         return f;
     OpBuilder b(module.getBodyRegion());
     return b.create<LLVM::LLVMFuncOp>(module.getLoc(), name, type);
+}
+
+// inserts setDevice(device) directly before each mgpurt* wrapper call
+// canonicalization removes redundant setDevice calls later
+static void insertSetDeviceBeforeCudaCalls(ModuleOp module) {
+    MLIRContext *ctx = module.getContext();
+    Type i32Type = IntegerType::get(ctx, 32);
+    LLVM::LLVMFuncOp setDeviceFunc =
+        getOrCreateFunc(module, "mgpurtSetDevice", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
+
+    module.walk([&](LLVM::CallOp call) {
+        auto callee = call.getCallee();
+        if (!callee)
+            return;
+        StringRef name = *callee;
+        unsigned deviceOperandIndex = 0;
+        if (name == "mgpurtMemAllocOnDevice" || name == "mgpurtMemFree" ||
+            name == "mgpurtStreamCreate" || name == "mgpurtStreamDestroy" ||
+            name == "mgpurtStreamSynchronize" || name == "mgpurtDeviceSynchronizeErr") {
+            deviceOperandIndex = 0;
+        // } else if (name == "mgpurtMemcpyPeer") {
+            // deviceOperandIndex = 1; // destination device
+        } else {
+            return;
+        }
+        if (deviceOperandIndex >= call.getNumOperands())
+            return;
+        Value device = call.getOperand(deviceOperandIndex);
+        OpBuilder b(call);
+        b.create<LLVM::CallOp>(call.getLoc(), setDeviceFunc, device);
+    });
 }
 
 // Device -> i32, Stream -> !llvm.ptr
@@ -122,17 +145,19 @@ static Value getPointerFromValue(ConversionPatternRewriter &rewriter, Location l
     return nullptr;
 }
 
+// can be mostly removed now, the canonicalization handles this
 static Value getOrCreateI32Constant(ConversionPatternRewriter &rewriter, Location loc, int32_t value) {
-    Block *block = rewriter.getInsertionBlock();
+    // Block *block = rewriter.getInsertionBlock();
     Type i32Type = rewriter.getI32Type();
-    for (Operation &op : *block) {
-        if (auto cst = dyn_cast<LLVM::ConstantOp>(&op)) {
-            if (cst.getType() == i32Type && cst.getValue().isa<IntegerAttr>()) {
-                if (cst.getValue().cast<IntegerAttr>().getInt() == value)
-                    return cst.getResult();
-            }
-        }
-    }
+    // for (Operation &op : *block) {
+    //     if (auto cst = dyn_cast<LLVM::ConstantOp>(&op)) {
+    //         if (cst.getType() == i32Type && cst.getValue().isa<IntegerAttr>()) {
+    //             if (cst.getValue().cast<IntegerAttr>().getInt() == value)
+    //                 return cst.getResult();
+    //         }
+    //     }
+    // }
+    // just keep this
     return rewriter.create<LLVM::ConstantOp>(loc, i32Type, rewriter.getI32IntegerAttr(value));
 }
 
@@ -177,11 +202,7 @@ struct ConvertGetDeviceOp : public OpConversionPattern<GetDeviceOp> {
 
     LogicalResult matchAndRewrite(GetDeviceOp op, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
-        ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
-        auto setDeviceFunc =
-            getOrCreateFunc(module, "mgpurtSetDevice", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
-
         Value indexVal = adaptor.getDeviceIndex();
         Value i32Val;
         if (auto cst = indexVal.getDefiningOp<arith::ConstantOp>()) {
@@ -190,7 +211,6 @@ struct ConvertGetDeviceOp : public OpConversionPattern<GetDeviceOp> {
         } else {
             i32Val = rewriter.create<arith::IndexCastOp>(op.getLoc(), i32Type, indexVal);
         }
-        rewriter.create<LLVM::CallOp>(op.getLoc(), setDeviceFunc, i32Val);
         rewriter.replaceOp(op, i32Val);
         return success();
     }
@@ -285,17 +305,14 @@ struct ConvertFreeOp : public OpConversionPattern<FreeOp> {
             return rewriter.notifyMatchFailure(op, "missing device (convert get_device first)");
 
         ModuleOp module = op->getParentOfType<ModuleOp>();
-        auto i32Type = rewriter.getI32Type();
         auto voidType = LLVM::LLVMVoidType::get(rewriter.getContext());
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-
-        auto setDeviceFunc =
-            getOrCreateFunc(module, "mgpurtSetDevice", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
-        auto freeFunc =
-            getOrCreateFunc(module, "mgpurtMemFree", LLVM::LLVMFunctionType::get(voidType, {ptrType, ptrType}));
-        rewriter.create<LLVM::CallOp>(loc, setDeviceFunc, deviceI32);
+        auto i32Type = rewriter.getI32Type();
+        auto freeFunc = getOrCreateFunc(
+            module, "mgpurtMemFree",
+            LLVM::LLVMFunctionType::get(voidType, {i32Type, ptrType, ptrType}));
         Value nullStream = rewriter.create<LLVM::ZeroOp>(loc, ptrType);
-        rewriter.create<LLVM::CallOp>(loc, freeFunc, ValueRange{ptrVal, nullStream});
+        rewriter.create<LLVM::CallOp>(loc, freeFunc, ValueRange{deviceI32, ptrVal, nullStream});
         rewriter.eraseOp(op);
         return success();
     }
@@ -370,15 +387,12 @@ struct ConvertCreateStreamOp : public OpConversionPattern<CreateStreamOp> {
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
         auto i32Type = rewriter.getI32Type();
-        auto setDeviceFunc =
-            getOrCreateFunc(module, "mgpurtSetDevice", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
-        auto streamCreateFunc =
-            getOrCreateFunc(module, "mgpurtStreamCreate", LLVM::LLVMFunctionType::get(i32Type, {ptrType}));
-        rewriter.create<LLVM::CallOp>(loc, setDeviceFunc, deviceI32);
-
+        auto streamCreateFunc = getOrCreateFunc(
+            module, "mgpurtStreamCreate",
+            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
         Value one = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
         Value alloca = rewriter.create<LLVM::AllocaOp>(loc, ptrType, ptrType, one, 0);
-        rewriter.create<LLVM::CallOp>(loc, streamCreateFunc, alloca);
+        rewriter.create<LLVM::CallOp>(loc, streamCreateFunc, ValueRange{deviceI32, alloca});
         Value stream = rewriter.create<LLVM::LoadOp>(loc, ptrType, alloca);
         rewriter.replaceOp(op, stream);
         return success();
@@ -390,16 +404,21 @@ struct ConvertDestroyStreamOp : public OpConversionPattern<DestroyStreamOp> {
 
     LogicalResult matchAndRewrite(DestroyStreamOp op, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
+        Location loc = op.getLoc();
+        Value deviceI32 = getDeviceI32(rewriter, loc, op.getDevice(), adaptor.getDevice());
         Value stream = adaptor.getStream();
+        if (!deviceI32)
+            return rewriter.notifyMatchFailure(op, "missing device");
         if (!stream)
             return rewriter.notifyMatchFailure(op, "missing stream");
 
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-        auto destroyFunc =
-            getOrCreateFunc(module, "mgpurtStreamDestroy", LLVM::LLVMFunctionType::get(i32Type, {ptrType}));
-        rewriter.create<LLVM::CallOp>(op.getLoc(), destroyFunc, stream);
+        auto destroyFunc = getOrCreateFunc(
+            module, "mgpurtStreamDestroy",
+            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
+        rewriter.create<LLVM::CallOp>(loc, destroyFunc, ValueRange{deviceI32, stream});
         rewriter.eraseOp(op);
         return success();
     }
@@ -410,16 +429,21 @@ struct ConvertSyncStreamOp : public OpConversionPattern<SyncStreamOp> {
 
     LogicalResult matchAndRewrite(SyncStreamOp op, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
+        Location loc = op.getLoc();
+        Value deviceI32 = getDeviceI32(rewriter, loc, op.getDevice(), adaptor.getDevice());
         Value stream = adaptor.getStream();
+        if (!deviceI32)
+            return rewriter.notifyMatchFailure(op, "missing device");
         if (!stream)
             return rewriter.notifyMatchFailure(op, "missing stream");
 
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-        auto syncFunc =
-            getOrCreateFunc(module, "mgpurtStreamSynchronize", LLVM::LLVMFunctionType::get(i32Type, {ptrType}));
-        rewriter.create<LLVM::CallOp>(op.getLoc(), syncFunc, stream);
+        auto syncFunc = getOrCreateFunc(
+            module, "mgpurtStreamSynchronize",
+            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
+        rewriter.create<LLVM::CallOp>(loc, syncFunc, ValueRange{deviceI32, stream});
         rewriter.eraseOp(op);
         return success();
     }
@@ -430,10 +454,16 @@ struct ConvertSyncDeviceOp : public OpConversionPattern<SyncDeviceOp> {
 
     LogicalResult matchAndRewrite(SyncDeviceOp op, OpAdaptor adaptor,
                                   ConversionPatternRewriter &rewriter) const override {
+        Location loc = op.getLoc();
+        Value deviceI32 = getDeviceI32(rewriter, loc, op.getDevice(), adaptor.getDevice());
+        if (!deviceI32)
+            return rewriter.notifyMatchFailure(op, "missing device");
+
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
-        auto syncFunc = getOrCreateFunc(module, "mgpurtDeviceSynchronizeErr", LLVM::LLVMFunctionType::get(i32Type, {}));
-        rewriter.create<LLVM::CallOp>(op.getLoc(), syncFunc, ValueRange{});
+        auto syncFunc = getOrCreateFunc(module, "mgpurtDeviceSynchronizeErr",
+                                        LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
+        rewriter.create<LLVM::CallOp>(loc, syncFunc, deviceI32);
         rewriter.eraseOp(op);
         return success();
     }
@@ -461,7 +491,8 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         target.addLegalDialect<func::FuncDialect>();
         target.addLegalOp<UnrealizedConversionCastOp>();
         target.addLegalDialect<MultiGpuDialect>();
-        target.addIllegalOp<GetDeviceOp, AllocOp, FreeOp, MemcpyOp, SyncDeviceOp>();
+        target.addIllegalOp<GetDeviceOp, AllocOp, FreeOp, MemcpyOp, SyncDeviceOp, CreateStreamOp,
+                            DestroyStreamOp, SyncStreamOp>();
 
         RewritePatternSet patterns(ctx);
         patterns.add<ConvertGetDeviceOp>(typeConverter, ctx, PatternBenefit(10));
@@ -469,10 +500,14 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         patterns.add<ConvertFreeOp>(typeConverter, ctx);
         patterns.add<ConvertMemcpyOp>(typeConverter, ctx);
         patterns.add<ConvertSyncDeviceOp>(typeConverter, ctx);
+        patterns.add<ConvertCreateStreamOp>(typeConverter, ctx);
+        patterns.add<ConvertDestroyStreamOp>(typeConverter, ctx);
+        patterns.add<ConvertSyncStreamOp>(typeConverter, ctx);
 
         if (failed(applyPartialConversion(module, target, std::move(patterns))))
             signalPassFailure();
 
+        insertSetDeviceBeforeCudaCalls(module);
         // RewritePatternSet canonicalizationPatterns(ctx);
         // canonicalizationPatterns.add<RemoveRedundantSetDeviceOp>(ctx);
         // GreedyRewriteConfig config;

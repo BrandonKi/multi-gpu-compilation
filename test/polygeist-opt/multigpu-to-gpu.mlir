@@ -22,10 +22,10 @@ func.func @test_sync_conversion() {
   %stream = mgpu.create_stream %dev : !mgpu.device -> !mgpu.stream
   
   // CHECK-NOT: mgpu.sync_stream
-  mgpu.sync_stream %stream : !mgpu.stream
+  mgpu.sync_stream %dev %stream : !mgpu.device, !mgpu.stream
   
   // CHECK-NOT: mgpu.destroy_stream
-  mgpu.destroy_stream %stream : !mgpu.stream
+  mgpu.destroy_stream %dev %stream : !mgpu.device, !mgpu.stream
   
   return
 }

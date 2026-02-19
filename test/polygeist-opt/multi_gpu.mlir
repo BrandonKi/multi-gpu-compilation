@@ -20,11 +20,11 @@ func.func @test_device_and_stream_creation() {
   // CHECK:       %[[s1:.*]] = mgpu.create_stream %[[dev]] : !mgpu.device -> !mgpu.stream
   %s1 = mgpu.create_stream %dev : !mgpu.device -> !mgpu.stream
 
-  // CHECK:       mgpu.destroy_stream %[[s1]] : !mgpu.stream
-  mgpu.destroy_stream %s1 : !mgpu.stream
+  // CHECK:       mgpu.destroy_stream %[[dev]] %[[s1]] : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev %s1 : !mgpu.device, !mgpu.stream
 
-  // CHECK:       mgpu.destroy_stream %[[s0]] : !mgpu.stream
-  mgpu.destroy_stream %s0 : !mgpu.stream
+  // CHECK:       mgpu.destroy_stream %[[dev]] %[[s0]] : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev %s0 : !mgpu.device, !mgpu.stream
 
   return
 }
@@ -92,7 +92,7 @@ func.func @test_memcpy_async() {
   // CHECK:       mgpu.memcpy %[[dst:.*]], %[[src:.*]], %[[d1:.*]], %[[d0:.*]] stream %[[st:.*]] : !mgpu.stream : memref<256xf32>, memref<256xf32>, !mgpu.device, !mgpu.device
   mgpu.memcpy %dst, %src, %dev1, %dev0 stream %stream : !mgpu.stream : memref<256xf32>, memref<256xf32>, !mgpu.device, !mgpu.device
 
-  mgpu.destroy_stream %stream : !mgpu.stream
+  mgpu.destroy_stream %dev1 %stream : !mgpu.device, !mgpu.stream
   return
 }
 
@@ -133,7 +133,7 @@ func.func @test_launch_3d_async() {
   mgpu.launch %dev grid (%c4, %c8, %c2) block (%c16, %c32, %c1) stream %stream {
   }
 
-  mgpu.destroy_stream %stream : !mgpu.stream
+  mgpu.destroy_stream %dev %stream : !mgpu.device, !mgpu.stream
   return
 }
 
@@ -151,14 +151,14 @@ func.func @test_sync_ops() {
   // CHECK:       mgpu.sync_device %[[dev:.*]] : !mgpu.device
   mgpu.sync_device %dev : !mgpu.device
 
-  // CHECK:       mgpu.sync_stream %[[s0:.*]] : !mgpu.stream
-  mgpu.sync_stream %s0 : !mgpu.stream
+  // CHECK:       mgpu.sync_stream %[[dev]] %[[s0:.*]] : !mgpu.device, !mgpu.stream
+  mgpu.sync_stream %dev %s0 : !mgpu.device, !mgpu.stream
 
   // CHECK:       mgpu.stream_wait %[[s1:.*]], %[[s0:.*]] : !mgpu.stream, !mgpu.stream
   mgpu.stream_wait %s1, %s0 : !mgpu.stream, !mgpu.stream
 
-  mgpu.destroy_stream %s0 : !mgpu.stream
-  mgpu.destroy_stream %s1 : !mgpu.stream
+  mgpu.destroy_stream %dev %s0 : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev %s1 : !mgpu.device, !mgpu.stream
   return
 }
 
@@ -173,9 +173,9 @@ func.func @test_stream_wait_multiple() {
   // CHECK:       mgpu.stream_wait %[[s2:.*]], %[[s0:.*]], %[[s1:.*]] : !mgpu.stream, !mgpu.stream, !mgpu.stream
   mgpu.stream_wait %s2, %s0, %s1 : !mgpu.stream, !mgpu.stream, !mgpu.stream
 
-  mgpu.destroy_stream %s0 : !mgpu.stream
-  mgpu.destroy_stream %s1 : !mgpu.stream
-  mgpu.destroy_stream %s2 : !mgpu.stream
+  mgpu.destroy_stream %dev %s0 : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev %s1 : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev %s2 : !mgpu.device, !mgpu.stream
   return
 }
 
@@ -213,7 +213,7 @@ func.func @test_all_reduce_async() {
   // CHECK:       mgpu.all_reduce %[[send:.*]], %[[recv:.*]], %[[comm:.*]], max stream %[[st:.*]] : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
   mgpu.all_reduce %send, %recv, %comm, max stream %stream : !mgpu.stream : memref<128xf32>, memref<128xf32>, !mgpu.communicator
 
-  mgpu.destroy_stream %stream : !mgpu.stream
+  mgpu.destroy_stream %dev0 %stream : !mgpu.device, !mgpu.stream
   return
 }
 

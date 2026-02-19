@@ -13,10 +13,10 @@ func.func @test_sync_ops() {
   %stream = mgpu.create_stream %dev : !mgpu.device -> !mgpu.stream
   
   // CHECK-NOT: mgpu.sync_stream
-  mgpu.sync_stream %stream : !mgpu.stream
+  mgpu.sync_stream %dev %stream : !mgpu.device, !mgpu.stream
   
   // CHECK-NOT: mgpu.destroy_stream
-  mgpu.destroy_stream %stream : !mgpu.stream
+  mgpu.destroy_stream %dev %stream : !mgpu.device, !mgpu.stream
   
   return
 }
@@ -36,12 +36,12 @@ func.func @test_multiple_syncs() {
   %stream1 = mgpu.create_stream %dev1 : !mgpu.device -> !mgpu.stream
   
   // CHECK-NOT: mgpu.sync_stream
-  mgpu.sync_stream %stream0 : !mgpu.stream
-  mgpu.sync_stream %stream1 : !mgpu.stream
+  mgpu.sync_stream %dev0 %stream0 : !mgpu.device, !mgpu.stream
+  mgpu.sync_stream %dev1 %stream1 : !mgpu.device, !mgpu.stream
   
   // CHECK-NOT: mgpu.destroy_stream
-  mgpu.destroy_stream %stream0 : !mgpu.stream
-  mgpu.destroy_stream %stream1 : !mgpu.stream
+  mgpu.destroy_stream %dev0 %stream0 : !mgpu.device, !mgpu.stream
+  mgpu.destroy_stream %dev1 %stream1 : !mgpu.device, !mgpu.stream
   
   return
 }

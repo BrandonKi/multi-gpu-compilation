@@ -159,14 +159,15 @@ def CreateStreamOp : MultiGpu_Op<"create_stream", [RecursiveMemoryEffects]> {
 
 def DestroyStreamOp : MultiGpu_Op<"destroy_stream", [RecursiveMemoryEffects]> {
   let summary = "Destroy a stream";
-  let arguments = (ins Stream:$stream);
+  let arguments = (ins Device:$device, Stream:$stream);
   let description = [{
     Releases the resources associated with a stream.
     All work enqueued on the stream should complete before destroying it.
     Destroying a stream with pending work is invalid.
+    The device must be the device on which the stream was created.
   }];
-  // mgpu.destroy_stream %stream : !mgpu.stream
-  let assemblyFormat = "$stream attr-dict `:` type($stream)";
+  // mgpu.destroy_stream %device, %stream : !mgpu.device, !mgpu.stream
+  let assemblyFormat = "$device $stream attr-dict `:` type($device) `,` type($stream)";
 }
 
 def CreateCommunicatorOp
@@ -583,12 +584,13 @@ def SyncDeviceOp : MultiGpu_Op<"sync_device", [RecursiveMemoryEffects]> {
 
 def SyncStreamOp : MultiGpu_Op<"sync_stream", [RecursiveMemoryEffects]> {
   let summary = "Synchronize a single stream";
-  let arguments = (ins Stream:$stream);
+  let arguments = (ins Device:$device, Stream:$stream);
   let description = [{
     Blocks the host until all work submitted to a stream has completed.
+    The device must be the device on which the stream was created.
   }];
-  // mgpu.sync_stream %stream : !mgpu.stream
-  let assemblyFormat = "$stream attr-dict `:` type($stream)";
+  // mgpu.sync_stream %device, %stream : !mgpu.device, !mgpu.stream
+  let assemblyFormat = "$device $stream attr-dict `:` type($device) `,` type($stream)";
 }
 
 def StreamWaitOp : MultiGpu_Op<"stream_wait", [RecursiveMemoryEffects]> {

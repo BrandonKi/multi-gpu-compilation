@@ -107,9 +107,15 @@ extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtSetDevice(int32_t deviceId) {
   return static_cast<int32_t>(cudaSetDevice(deviceId));
 }
 
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtGetDevice(void) {
+  int device = -1;
+  CUDART_REPORT_IF_ERROR(cudaGetDevice(&device));
+  return static_cast<int32_t>(device);
+}
+
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT void *mgpurtMemAllocOnDevice(
     int32_t deviceId, uint64_t sizeBytes) {
-  CUDART_REPORT_IF_ERROR(cudaSetDevice(deviceId));
+  // caller sets device
   void *ptr;
   CUDART_REPORT_IF_ERROR(cudaMalloc(&ptr, sizeBytes));
   return ptr;
@@ -132,24 +138,30 @@ extern "C" void mgpurtMemcpyAsyncErr(void *dst, void *src, size_t sizeBytes,
       cudaMemcpyAsync(dst, src, sizeBytes, cudaMemcpyDefault, stream));
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtMemFree(void *ptr,
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT void mgpurtMemFree(int32_t /*deviceId*/,
+                                                        void *ptr,
                                                         cudaStream_t /*stream*/) {
+  // caller sets device
   CUDART_REPORT_IF_ERROR(cudaFree(ptr));
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtStreamCreate(void **stream) {
-  return static_cast<int32_t>(cudaStreamCreate(
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtStreamCreate(
+    int32_t /*deviceId*/, void **stream) {
+    // Caller must set current device before calling.
+    return static_cast<int32_t>(cudaStreamCreate(
       reinterpret_cast<cudaStream_t *>(stream)));
 }
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
-mgpurtStreamDestroy(void *stream) {
+mgpurtStreamDestroy(int32_t /*deviceId*/, void *stream) {
+  // caller sets device
   return static_cast<int32_t>(
       cudaStreamDestroy(reinterpret_cast<cudaStream_t>(stream)));
 }
 
 extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
-mgpurtStreamSynchronize(void *stream) {
+mgpurtStreamSynchronize(int32_t /*deviceId*/, void *stream) {
+  // caller sets device
   return static_cast<int32_t>(
       cudaStreamSynchronize(reinterpret_cast<cudaStream_t>(stream)));
 }
@@ -201,7 +213,9 @@ mgpuModuleGetFunction(CUmodule module, const char *name) {
   return function;
 }
 
-extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t mgpurtDeviceSynchronizeErr(void) {
+extern "C" MLIR_CUDA_WRAPPERS_EXPORT int32_t
+mgpurtDeviceSynchronizeErr(int32_t /*deviceId*/) {
+  // Caller must set current device before calling.
   return CUDART_REPORT_IF_ERROR(cudaDeviceSynchronize());
 }
 

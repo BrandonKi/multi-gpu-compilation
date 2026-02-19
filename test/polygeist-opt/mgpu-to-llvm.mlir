@@ -1,6 +1,7 @@
 // RUN: polygeist-opt %s -mgpu-to-llvm | FileCheck %s
 //
-// Simple test for mgpu-to-llvm: get_device and sync_device become runtime calls.
+// Simple test for mgpu-to-llvm: get_device lowers to just the device index (i32);
+// setDevice is inserted before sync_device (and other ops that depend on current device).
 
 // CHECK-LABEL: func @simple_sync
 func.func @simple_sync() {

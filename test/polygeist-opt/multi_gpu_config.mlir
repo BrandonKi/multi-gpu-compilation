@@ -19,7 +19,7 @@ module {
     mgpu.sync_device %dev : !mgpu.device
 
     // Cleanup stream
-    mgpu.destroy_stream %stream : !mgpu.stream
+    mgpu.destroy_stream %dev %stream : !mgpu.device, !mgpu.stream
 
     return
   }
