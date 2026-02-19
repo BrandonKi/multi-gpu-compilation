@@ -25,14 +25,12 @@ set(MGPU_TEST_FILES
   gpu-to-multigpu-vecadd-example.mlir
   mgpu-device-allocation.mlir
   mgpu-to-llvm.mlir
+  mgpu-to-llvm-launch.mlir
   mgpu-to-llvm-memory-ops.mlir
   multi_gpu.mlir
   multi_gpu_config.mlir
   multi_gpu_reduction.mlir
   multi_gpu_sharding.mlir
-  multigpu-lowering.mlir
-  multigpu-memory-ops.mlir
-  multigpu-to-gpu.mlir
 )
 foreach(_mgpu_file ${MGPU_TEST_FILES})
   configure_file(

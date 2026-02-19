@@ -1,4 +1,4 @@
-// RUN: polygeist-opt %s -canonicalize-polygeist -gpu-to-multigpu | FileCheck %s
+// RUN: polygeist-opt %s -canonicalize-polygeist -gpu-to-mgpu | FileCheck %s
 //
 // Test converting two vecAdd GPU kernels to MultiGPU dialect.
 

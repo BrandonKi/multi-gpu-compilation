@@ -13,9 +13,11 @@
 
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
+#include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
@@ -124,7 +126,7 @@ class MultiGpuToLLVMTypeConverter : public TypeConverter {
         addSourceMaterialization([](OpBuilder &b, Type resultType, ValueRange inputs, Location loc) -> Value {
             if (inputs.size() != 1)
                 return nullptr;
-            return inputs[0];
+            return b.create<UnrealizedConversionCastOp>(loc, resultType, inputs[0]).getResult(0);
         });
     }
 };
@@ -164,6 +166,10 @@ static Value getOrCreateI32Constant(ConversionPatternRewriter &rewriter, Locatio
 static Value getDeviceI32(ConversionPatternRewriter &rewriter, Location loc, Value origDev, Value adaptedDev) {
     if (adaptedDev && adaptedDev.getType().isa<IntegerType>())
         return adaptedDev;
+    if (auto cast = origDev.getDefiningOp<UnrealizedConversionCastOp>()) {
+        if (cast.getNumOperands() == 1 && cast.getOperand(0).getType().isa<IntegerType>())
+            return cast.getOperand(0);
+    }
     if (auto getDev = origDev.getDefiningOp<GetDeviceOp>()) {
         Value idx = getDev.getDeviceIndex();
         if (idx) {
@@ -211,7 +217,10 @@ struct ConvertGetDeviceOp : public OpConversionPattern<GetDeviceOp> {
         } else {
             i32Val = rewriter.create<arith::IndexCastOp>(op.getLoc(), i32Type, indexVal);
         }
-        rewriter.replaceOp(op, i32Val);
+        Type deviceType = DeviceType::get(rewriter.getContext());
+        Value deviceVal =
+            rewriter.create<UnrealizedConversionCastOp>(op.getLoc(), deviceType, i32Val).getResult(0);
+        rewriter.replaceOp(op, deviceVal);
         return success();
     }
 };
@@ -230,21 +239,24 @@ struct ConvertAllocOp : public OpConversionPattern<AllocOp> {
         bool fromAdaptor = deviceI32 && deviceI32.getType().isa<IntegerType>();
         if (!fromAdaptor) {
             Value origDev = op.getDevice();
-            if (auto getDev = origDev.getDefiningOp<GetDeviceOp>()) {
-                Value idx = getDev.getDeviceIndex();
-                if (idx) {
-                    if (auto cst = idx.getDefiningOp<arith::ConstantOp>()) {
-                        int64_t v = cst.getValue().cast<IntegerAttr>().getInt();
-                        deviceI32 = getOrCreateI32Constant(rewriter, loc, static_cast<int32_t>(v));
-                    } else if (auto llvmCst = idx.getDefiningOp<LLVM::ConstantOp>()) {
-                        int64_t v = llvmCst.getValue().cast<IntegerAttr>().getInt();
-                        deviceI32 = getOrCreateI32Constant(rewriter, loc, static_cast<int32_t>(v));
-                    } else {
-                        deviceI32 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), idx);
+            deviceI32 = getDeviceI32(rewriter, loc, origDev, adaptor.getDevice());
+            if (!deviceI32 && origDev) {
+                if (auto getDev = origDev.getDefiningOp<GetDeviceOp>()) {
+                    Value idx = getDev.getDeviceIndex();
+                    if (idx) {
+                        if (auto cst = idx.getDefiningOp<arith::ConstantOp>()) {
+                            int64_t v = cst.getValue().cast<IntegerAttr>().getInt();
+                            deviceI32 = getOrCreateI32Constant(rewriter, loc, static_cast<int32_t>(v));
+                        } else if (auto llvmCst = idx.getDefiningOp<LLVM::ConstantOp>()) {
+                            int64_t v = llvmCst.getValue().cast<IntegerAttr>().getInt();
+                            deviceI32 = getOrCreateI32Constant(rewriter, loc, static_cast<int32_t>(v));
+                        } else {
+                            deviceI32 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), idx);
+                        }
                     }
+                    if (!deviceI32)
+                        deviceI32 = getOrCreateI32Constant(rewriter, loc, 0);
                 }
-                if (!deviceI32)
-                    deviceI32 = getOrCreateI32Constant(rewriter, loc, 0);
             }
         }
         if (!deviceI32)
@@ -284,19 +296,23 @@ struct ConvertFreeOp : public OpConversionPattern<FreeOp> {
         Value deviceI32 = adaptor.getDevice();
         bool fromAdaptor = deviceI32 && deviceI32.getType().isa<IntegerType>();
         if (!fromAdaptor) {
-            if (auto getDev = op.getDevice().getDefiningOp<GetDeviceOp>()) {
-                Value idx = getDev.getDeviceIndex();
-                if (!idx)
-                    return rewriter.notifyMatchFailure(op,
-                                                       "get_device has no index operand (convert get_device first)");
-                if (auto cst = idx.getDefiningOp<arith::ConstantOp>())
-                    deviceI32 = getOrCreateI32Constant(
-                        rewriter, loc, static_cast<int32_t>(cst.getValue().cast<IntegerAttr>().getInt()));
-                else if (auto llvmCst = idx.getDefiningOp<LLVM::ConstantOp>())
-                    deviceI32 = getOrCreateI32Constant(
-                        rewriter, loc, static_cast<int32_t>(llvmCst.getValue().cast<IntegerAttr>().getInt()));
-                else
-                    deviceI32 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), idx);
+            Value origDev = op.getDevice();
+            deviceI32 = getDeviceI32(rewriter, loc, origDev, adaptor.getDevice());
+            if (!deviceI32 && origDev) {
+                if (auto getDev = origDev.getDefiningOp<GetDeviceOp>()) {
+                    Value idx = getDev.getDeviceIndex();
+                    if (!idx)
+                        return rewriter.notifyMatchFailure(op,
+                                                           "get_device has no index operand (convert get_device first)");
+                    if (auto cst = idx.getDefiningOp<arith::ConstantOp>())
+                        deviceI32 = getOrCreateI32Constant(
+                            rewriter, loc, static_cast<int32_t>(cst.getValue().cast<IntegerAttr>().getInt()));
+                    else if (auto llvmCst = idx.getDefiningOp<LLVM::ConstantOp>())
+                        deviceI32 = getOrCreateI32Constant(
+                            rewriter, loc, static_cast<int32_t>(llvmCst.getValue().cast<IntegerAttr>().getInt()));
+                    else
+                        deviceI32 = rewriter.create<arith::IndexCastOp>(loc, rewriter.getI32Type(), idx);
+                }
             }
         }
         if (!deviceI32)
@@ -477,11 +493,55 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         registry.insert<arith::ArithDialect>();
         registry.insert<memref::MemRefDialect>();
         registry.insert<func::FuncDialect>();
+        registry.insert<gpu::GPUDialect>();
     }
 
     void runOnOperation() override {
         ModuleOp module = getOperation();
         MLIRContext *ctx = &getContext();
+
+        // convert mgpu.launch to gpu.launch
+        SmallVector<LaunchOp> toConvert;
+        module.walk([&](LaunchOp launch) { toConvert.push_back(launch); });
+        IRRewriter rewriter(ctx);
+        for (LaunchOp op : toConvert) {
+            rewriter.setInsertionPoint(op);
+            Location loc = op.getLoc();
+            ValueRange grid = op.getGrid();
+            ValueRange block = op.getBlock();
+            Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
+            Value gridX = grid.size() > 0 ? grid[0] : one;
+            Value gridY = grid.size() > 1 ? grid[1] : one;
+            Value gridZ = grid.size() > 2 ? grid[2] : one;
+            Value blockX = block.size() > 0 ? block[0] : one;
+            Value blockY = block.size() > 1 ? block[1] : one;
+            Value blockZ = block.size() > 2 ? block[2] : one;
+            OperationState state(loc, gpu::LaunchOp::getOperationName());
+            gpu::LaunchOp::build(rewriter, state, gridX, gridY, gridZ, blockX,
+                                blockY, blockZ,
+                                /*dynamicSharedMemorySize=*/nullptr,
+                                /*asyncTokenType=*/nullptr,
+                                /*asyncDependencies=*/ValueRange{},
+                                /*workgroupAttributions=*/TypeRange{},
+                                /*privateAttributions=*/TypeRange{});
+            Block *body = &state.regions[0]->front();
+            {
+                OpBuilder b(ctx);
+                b.setInsertionPointToEnd(body);
+                b.create<gpu::TerminatorOp>(loc);
+            }
+            auto gpuLaunch = cast<gpu::LaunchOp>(rewriter.create(state));
+            Block &gpuBlock = gpuLaunch.getBody().front();
+            Block &mgpuBlock = op.getKernelRegion().front();
+            rewriter.setInsertionPoint(gpuBlock.getTerminator());
+            for (Operation &innerOp : mgpuBlock) {
+                if (isa<TerminatorOp>(innerOp))
+                    continue;
+                rewriter.clone(innerOp);
+            }
+            rewriter.eraseOp(op);
+        }
+
         MultiGpuToLLVMTypeConverter typeConverter(ctx);
 
         ConversionTarget target(*ctx);
@@ -489,6 +549,7 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         target.addLegalDialect<arith::ArithDialect>();
         target.addLegalDialect<memref::MemRefDialect>();
         target.addLegalDialect<func::FuncDialect>();
+        target.addLegalDialect<gpu::GPUDialect>();
         target.addLegalOp<UnrealizedConversionCastOp>();
         target.addLegalDialect<MultiGpuDialect>();
         target.addIllegalOp<GetDeviceOp, AllocOp, FreeOp, MemcpyOp, SyncDeviceOp, CreateStreamOp,
