@@ -211,10 +211,15 @@ def generate_html(input_file, output_file):
             }
 
             function extractMlirOpKey(line) {
-                const opMatch = line.match(/=\s*([a-zA-Z0-9_.]+)\b/);
-                if (!opMatch) return null;
-
-                const op = opMatch[1];
+                let op = null;
+                const resultAssignMatch = line.match(/=\s*([a-zA-Z0-9_.]+)\b/);
+                if (resultAssignMatch) {
+                    op = resultAssignMatch[1];
+                } else {
+                    const leadOpMatch = line.match(/^\s*([a-zA-Z0-9_.]+)\b/);
+                    if (leadOpMatch) op = leadOpMatch[1];
+                }
+                if (!op) return null;
 
                 if (op.endsWith(".call")) {
                     const calleeMatch = line.match(/@[\w\d_.]+/);
