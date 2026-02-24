@@ -35,6 +35,7 @@
 #include "multigpu/MultiGpuDialect.h"
 #include "multigpu/MultiGpuPasses.h"
 #include "polygeist/Passes/Passes.h"
+#include "polygeist/PolygeistToLLVMIRTranslation.h"
 
 using namespace mlir;
 
@@ -63,6 +64,7 @@ int main(int argc, char **argv) {
   registry.insert<mlir::math::MathDialect>();
   registry.insert<mlir::cf::ControlFlowDialect>();
   registry.insert<mlir::polygeist::PolygeistDialect>();
+  mlir::registerPolygeistDialectTranslation(registry);
   registry.insert<mlir::multigpu::MultiGpuDialect>();
   registry.insert<DLTIDialect>();
 

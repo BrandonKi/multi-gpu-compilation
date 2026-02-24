@@ -80,6 +80,7 @@
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
+#include "polygeist/PolygeistToLLVMIRTranslation.h"
 #include "multigpu/MultiGpuDialect.h"
 #include "multigpu/MultiGpuPasses.h"
 
@@ -538,6 +539,7 @@ int main(int argc, char **argv) {
   mlir::DialectRegistry registry;
   mlir::registerOpenMPDialectTranslation(registry);
   mlir::registerLLVMDialectTranslation(registry);
+  mlir::registerPolygeistDialectTranslation(registry);
   mlir::func::registerInlinerExtension(registry);
   polygeist::registerGpuSerializeToCubinPass();
   polygeist::registerGpuSerializeToHsacoPass();

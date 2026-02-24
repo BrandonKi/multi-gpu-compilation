@@ -138,6 +138,27 @@ struct LowerAlternativesPass
       return;
     }
 
+    // inline first alternative for each op
+    if (PolygeistAlternativesMode == PAM_Static) {
+      std::vector<polygeist::AlternativesOp> toHandle;
+      getOperation()->walk(
+          [&](polygeist::AlternativesOp aop) {
+            toHandle.push_back(aop);
+          });
+      for (auto aop : toHandle) {
+        assert(aop->getNumRegions() > 0 && "alternatives must have regions");
+        auto block = &*aop->getRegions()[0].begin();
+        block->getTerminator()->erase();
+        OpBuilder builder(aop);
+        IRMapping mapping;
+        for (auto &op : *block) {
+          builder.clone(op, mapping);
+        }
+        aop->erase();
+      }
+      return;
+    }
+
     // TODO Should be its own pass really
     std::map<std::string, int> num;
     getOperation()->walk([&](polygeist::AlternativesOp altOp) {
