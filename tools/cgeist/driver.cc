@@ -80,6 +80,8 @@
 
 #include "polygeist/Dialect.h"
 #include "polygeist/Passes/Passes.h"
+#include "multigpu/MultiGpuDialect.h"
+#include "multigpu/MultiGpuPasses.h"
 
 #include <fstream>
 
@@ -215,7 +217,7 @@ static cl::opt<std::string> cfunction("function",
 static cl::opt<bool> FOpenMP("fopenmp", cl::init(false),
                              cl::desc("Enable OpenMP"));
 
-static cl::opt<std::string> ToCPU("cpuify", cl::init("1"),
+static cl::opt<std::string> ToCPU("cpuify", cl::init(""),
                                   cl::desc("Convert to cpu"));
 
 static cl::opt<std::string> MArch("march", cl::init(""),
@@ -477,7 +479,8 @@ int main(int argc, char **argv) {
       if (ref == "-Wl,--start-group")
         linkOnly = true;
       if (!linkOnly) {
-        if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize")) {
+        if (ref == "-fPIC" || ref == "-c" || ref.startswith("-fsanitize") ||
+            ref == "-static-libstdc++" || ref == "-static-libgcc") {
           LinkageArgs.push_back(argv[i]);
         } else if (ref == "-L" || ref == "-l") {
           LinkageArgs.push_back(argv[i]);
@@ -538,6 +541,9 @@ int main(int argc, char **argv) {
   mlir::func::registerInlinerExtension(registry);
   polygeist::registerGpuSerializeToCubinPass();
   polygeist::registerGpuSerializeToHsacoPass();
+  mlir::multigpu::registerGpuToMultiGpuConversionPass();
+  mlir::multigpu::registerMultiGpuToLLVMConversionPass();
+  mlir::multigpu::registerDeviceAllocationPass();
   mlir::registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
   mlir::registerAllFromLLVMIRTranslations(registry);
@@ -554,6 +560,7 @@ int main(int argc, char **argv) {
   context.getOrLoadDialect<mlir::NVVM::NVVMDialect>();
   context.getOrLoadDialect<mlir::ROCDL::ROCDLDialect>();
   context.getOrLoadDialect<mlir::gpu::GPUDialect>();
+  context.getOrLoadDialect<mlir::multigpu::MultiGpuDialect>();
   context.getOrLoadDialect<mlir::omp::OpenMPDialect>();
   context.getOrLoadDialect<mlir::math::MathDialect>();
   context.getOrLoadDialect<mlir::memref::MemRefDialect>();
@@ -906,6 +913,9 @@ int main(int argc, char **argv) {
       // We cannot canonicalize here because we have sunk some operations in the
       // kernel which the canonicalizer would hoist
 
+      pm.addPass(mlir::multigpu::createGpuToMultiGpuConversionPass());
+      pm.addPass(mlir::multigpu::createMultiGpuToLLVMConversionPass());
+
       // TODO pass in gpuDL, the format is weird
       pm.addPass(mlir::createGpuKernelOutliningPass());
       pm.addPass(polygeist::createMergeGPUModulesPass());
@@ -1031,7 +1041,9 @@ int main(int argc, char **argv) {
               arch = "sm_60";
             std::string libDevicePath = detector.getLibDeviceFile(arch);
             std::string ptxasPath =
-                std::string(detector.getBinPath()) + "/ptxas";
+                (CUDAPath != "")
+                    ? (CUDAPath + "/bin/ptxas")
+                    : (std::string(detector.getBinPath()) + "/ptxas");
 
             // TODO what should the ptx version be?
             mlir::OpPassManager &gpuPM = pm3.nest<gpu::GPUModuleOp>();

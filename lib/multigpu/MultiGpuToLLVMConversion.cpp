@@ -17,6 +17,7 @@
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/IRMapping.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -533,11 +534,12 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
             auto gpuLaunch = cast<gpu::LaunchOp>(rewriter.create(state));
             Block &gpuBlock = gpuLaunch.getBody().front();
             Block &mgpuBlock = op.getKernelRegion().front();
+            IRMapping mapping;
             rewriter.setInsertionPoint(gpuBlock.getTerminator());
             for (Operation &innerOp : mgpuBlock) {
                 if (isa<TerminatorOp>(innerOp))
                     continue;
-                rewriter.clone(innerOp);
+                rewriter.clone(innerOp, mapping);
             }
             rewriter.eraseOp(op);
         }
@@ -567,6 +569,11 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
 
         if (failed(applyPartialConversion(module, target, std::move(patterns))))
             signalPassFailure();
+
+        SmallVector<DeviceConfigOp> configOps;
+        module.walk([&](DeviceConfigOp op) { configOps.push_back(op); });
+        for (DeviceConfigOp op : configOps)
+            op.erase();
 
         insertSetDeviceBeforeCudaCalls(module);
         // RewritePatternSet canonicalizationPatterns(ctx);

@@ -356,17 +356,23 @@ SerializeToCubinPass::serializeISA(const std::string &isa) {
     out.flush();
   }
 
+  llvm::SmallString<32> archOpt;
+  archOpt.append("-arch=");
+  archOpt.append(chip);
+
   std::vector<StringRef> Argv;
   Argv.push_back(ptxasPath.c_str());
   Argv.push_back(llvm::Triple(triple).isArch64Bit() ? "-m64" : "-m32");
-  Argv.push_back("--gpu-name");
-  Argv.push_back(chip.c_str());
+  Argv.push_back(archOpt.str());
   Argv.push_back("--opt-level");
   Argv.push_back(std::to_string(ptxasOptLevel));
   Argv.push_back("--verbose");
   Argv.push_back("--output-file");
   Argv.push_back(tmpOutput.c_str());
   Argv.push_back(tmpInput.c_str());
+
+  llvm::errs() << "polygeist-serialize-to-cubin: using ptxas: " << ptxasPath
+               << " with -arch=" << chip << "\n";
 
   llvm::sys::ExecuteAndWait(ptxasPath.c_str(), Argv);
 

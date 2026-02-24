@@ -96,7 +96,7 @@ static bool isCudaMallocWrapperCall(func::CallOp call) {
 }
 
 static LogicalResult tryConvertOneCudaAlloc(func::CallOp call, OpBuilder &b,
-    SmallVector<affine::AffineLoadOp> &loadsToErase) {
+    SmallVector<Operation *> &loadsToErase) {
     if (!isCudaMallocWrapperCall(call))
         return failure();
     Value castOp = call.getOperand(0);
@@ -161,17 +161,24 @@ static LogicalResult tryConvertOneCudaAlloc(func::CallOp call, OpBuilder &b,
     Value allocCast = b.create<memref::CastOp>(loc, dynamicType, alloc);
     loadsToErase.clear();
     for (OpOperand &use : alloca.getResult().getUses()) {
-        auto load = dyn_cast<affine::AffineLoadOp>(use.getOwner());
-        if (!load || load.getMemRef() != alloca.getResult())
+        Operation *useOp = use.getOwner();
+        Value loadMemRef;
+        if (auto affineLoad = dyn_cast<affine::AffineLoadOp>(useOp))
+            loadMemRef = affineLoad.getMemRef();
+        else if (auto memrefLoad = dyn_cast<memref::LoadOp>(useOp))
+            loadMemRef = memrefLoad.getMemRef();
+        else
             continue;
-        for (OpOperand &resUse : llvm::make_early_inc_range(load.getResult().getUses()))
+        if (loadMemRef != alloca.getResult())
+            continue;
+        for (OpOperand &resUse : llvm::make_early_inc_range(useOp->getResult(0).getUses()))
             resUse.set(allocCast);
-        loadsToErase.push_back(load);
+        loadsToErase.push_back(useOp);
     }
     if (loadsToErase.empty())
         return failure();
-    for (affine::AffineLoadOp load : loadsToErase)
-        load.erase();
+    for (Operation *load : loadsToErase)
+        load->erase();
     call.erase();
     if (cast.getResult().use_empty())
         cast.erase();
@@ -246,17 +253,24 @@ struct ConvertCudaAllocToMgpu : public OpRewritePattern<func::CallOp> {
         Value alloc = rewriter.create<multigpu::AllocOp>(loc, resultType, device);
         auto dynamicType = MemRefType::get({ShapedType::kDynamic}, elemTy);
         Value allocCast = rewriter.create<memref::CastOp>(loc, dynamicType, alloc);
-        SmallVector<affine::AffineLoadOp> loadsToErase;
+        SmallVector<Operation *> loadsToErase;
         for (OpOperand &use : alloca.getResult().getUses()) {
-            auto load = dyn_cast<affine::AffineLoadOp>(use.getOwner());
-            if (!load || load.getMemRef() != alloca.getResult())
+            Operation *useOp = use.getOwner();
+            Value loadMemRef;
+            if (auto affineLoad = dyn_cast<affine::AffineLoadOp>(useOp))
+                loadMemRef = affineLoad.getMemRef();
+            else if (auto memrefLoad = dyn_cast<memref::LoadOp>(useOp))
+                loadMemRef = memrefLoad.getMemRef();
+            else
                 continue;
-            rewriter.replaceAllUsesWith(load.getResult(), allocCast);
-            loadsToErase.push_back(load);
+            if (loadMemRef != alloca.getResult())
+                continue;
+            rewriter.replaceAllUsesWith(useOp->getResult(0), allocCast);
+            loadsToErase.push_back(useOp);
         }
         if (loadsToErase.empty())
             return failure();
-        for (affine::AffineLoadOp load : loadsToErase)
+        for (Operation *load : loadsToErase)
             rewriter.eraseOp(load);
         rewriter.eraseOp(call);
         if (cast.getResult().use_empty())
@@ -376,7 +390,7 @@ struct GpuToMultiGpuConversionPass
         insertDeviceConfigOp(module, context);
 
         // Phase 1a: Convert cudaMalloc to mgpu.alloc
-        SmallVector<affine::AffineLoadOp> loadsToErase;
+        SmallVector<Operation *> loadsToErase;
         bool allocChanged = true;
         while (allocChanged) {
             allocChanged = false;
