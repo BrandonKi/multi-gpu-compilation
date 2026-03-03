@@ -1,4 +1,8 @@
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+POLYGEIST_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export POLYGEIST_ROOT
+export PATH="${POLYGEIST_ROOT}:${PATH}"
+
+SCRIPT_DIR="$POLYGEIST_ROOT"
 
 export CUDA_PATH="/usr/local/cuda-12.1"
 
@@ -11,6 +15,13 @@ fi
 
 if [ -z "$MLIR_DIR" ]; then
     export MLIR_DIR=$LLVM_REPO/build2/lib/cmake/mlir
+fi
+
+if [ -z "$LLVM_DIR" ]; then
+    export LLVM_DIR=$LLVM_REPO/build2/lib/cmake/llvm
+fi
+if [ -z "$CLANG_DIR" ]; then
+    export CLANG_DIR=$LLVM_REPO/build2/lib/cmake/clang
 fi
 
 if [ -z "$LLVM_SYMBOLIZER_PATH" ]; then

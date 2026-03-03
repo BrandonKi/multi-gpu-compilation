@@ -491,4 +491,8 @@ def generate_html(input_file, output_file):
     print(f"Viewer generated: {output_file}")
 
 if __name__ == "__main__":
-    generate_html('log.txt', 'mlir_viewer.html')
+    import sys
+    if len(sys.argv) == 3:
+        generate_html(sys.argv[1], sys.argv[2])
+    elif len(sys.argv) == 1:
+        generate_html('log.txt', 'mlir_viewer.html')
