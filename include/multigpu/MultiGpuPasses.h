@@ -11,7 +11,7 @@ namespace multigpu {
 std::unique_ptr<Pass> createIdentityPass();
 void registerIdentityPass();
 
-std::unique_ptr<Pass> createGpuToMultiGpuConversionPass();
+std::unique_ptr<Pass> createGpuToMultiGpuConversionPass(uint32_t numGpu = 1);
 void registerGpuToMultiGpuConversionPass();
 
 std::unique_ptr<Pass> createMultiGpuToLLVMConversionPass();

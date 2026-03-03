@@ -209,6 +209,11 @@ static cl::opt<bool> NoCUDAInc("nocudainc", cl::init(false),
 static cl::opt<bool> NoCUDALib("nocudalib", cl::init(false),
                                cl::desc("Do not link CUDA libdevice"));
 
+static cl::opt<int> NumGpu("num_gpu", cl::init(1),
+                           cl::desc("Number of GPUs (device_config numDevices); "
+                                    "when >1, split kernel across GPUs"));
+
+
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
 static cl::opt<std::string> cfunction("function",

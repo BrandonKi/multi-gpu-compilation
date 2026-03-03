@@ -361,6 +361,9 @@ struct GpuToMultiGpuConversionPass
     : public PassWrapper<GpuToMultiGpuConversionPass, OperationPass<ModuleOp>> {
   MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(GpuToMultiGpuConversionPass)
 
+  GpuToMultiGpuConversionPass() = default;
+  GpuToMultiGpuConversionPass(uint32_t numGpu) : numDevices(numGpu) {}
+
     void getDependentDialects(DialectRegistry &registry) const override {
         registry.insert<multigpu::MultiGpuDialect>();
         registry.insert<gpu::GPUDialect>();
@@ -369,19 +372,26 @@ struct GpuToMultiGpuConversionPass
     }
 
     void insertDeviceConfigOp(ModuleOp& mod, MLIRContext *ctx) {
-        bool present = false;
-        mod.walk([&present](multigpu::DeviceConfigOp op) {
-            present = true;
+        multigpu::DeviceConfigOp existing;
+        mod.walk([&existing](multigpu::DeviceConfigOp op) {
+            existing = op;
             return WalkResult::interrupt();
         });
-        
-        if(!present) {
-            OpBuilder b(ctx);
-            b.setInsertionPointToStart(mod.getBody());
-            auto attr = multigpu::DeviceConfigAttr::get(ctx, /*numDevices=*/1, /*deviceIds=*/DenseI32ArrayAttr());
-            b.create<multigpu::DeviceConfigOp>(mod.getLoc(), b.getStringAttr("mgpu_device_config"), attr);
+        auto attr = multigpu::DeviceConfigAttr::get(
+            ctx, /*numDevices=*/numDevices,
+            /*deviceIds=*/DenseI32ArrayAttr());
+        if (existing) {
+            existing->setAttr("config", attr);
+            return;
         }
+        OpBuilder b(ctx);
+        b.setInsertionPointToStart(mod.getBody());
+        b.create<multigpu::DeviceConfigOp>(mod.getLoc(),
+                                           b.getStringAttr("mgpu_device_config"),
+                                           attr);
     }
+
+  uint32_t numDevices = 1;
 
     void runOnOperation() override {
         ModuleOp module = getOperation();
@@ -483,8 +493,8 @@ struct GpuToMultiGpuConversionPass
 namespace mlir {
 namespace multigpu {
 
-std::unique_ptr<Pass> createGpuToMultiGpuConversionPass() {
-    return std::make_unique<GpuToMultiGpuConversionPass>();
+std::unique_ptr<Pass> createGpuToMultiGpuConversionPass(uint32_t numGpu) {
+    return std::make_unique<GpuToMultiGpuConversionPass>(numGpu);
 }
 
 void registerGpuToMultiGpuConversionPass() {
