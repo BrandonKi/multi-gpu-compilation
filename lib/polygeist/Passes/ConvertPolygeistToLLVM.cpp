@@ -1431,9 +1431,11 @@ class ConvertLaunchFuncOpToGpuRuntimeCallPattern
 public:
   ConvertLaunchFuncOpToGpuRuntimeCallPattern(LLVMTypeConverter &typeConverter,
                                              StringRef gpuBinaryAnnotation,
-                                             std::string gpuTarget)
+                                             std::string gpuTarget,
+                                             bool mgpuDebugLaunches = false)
       : ConvertOpToGpuRuntimeCallPattern<gpu::LaunchFuncOp>(typeConverter),
-        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget) {}
+        gpuBinaryAnnotation(gpuBinaryAnnotation), gpuTarget(gpuTarget),
+        mgpuDebugLaunches(mgpuDebugLaunches) {}
 
 private:
   Value generateParamsArray(gpu::LaunchFuncOp launchOp, OpAdaptor adaptor,
@@ -1447,6 +1449,7 @@ private:
 
   llvm::SmallString<32> gpuBinaryAnnotation;
   std::string gpuTarget;
+  bool mgpuDebugLaunches;
 };
 
 // tuple helpers
@@ -2323,6 +2326,110 @@ LogicalResult ConvertLaunchFuncOpToGpuRuntimeCallPattern::matchAndRewrite(
   Value dynamicSharedMemorySize = launchOp.getDynamicSharedMemorySize()
                                       ? launchOp.getDynamicSharedMemorySize()
                                       : zero;
+
+  if (mgpuDebugLaunches ||
+      moduleOp->hasAttr("polygeist.mgpu_debug_launches")) {
+    LLVM::LLVMFuncOp printfFunc =
+        moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("printf");
+    if (!printfFunc) {
+      OpBuilder moduleBuilder(moduleOp.getBodyRegion());
+      auto i32Ty = IntegerType::get(moduleOp.getContext(), 32);
+      auto ptrTy = LLVM::LLVMPointerType::get(moduleOp.getContext());
+      auto printfTy =
+          LLVM::LLVMFunctionType::get(i32Ty, ArrayRef<Type>{ptrTy},
+                                      /*isVarArg=*/true);
+      printfFunc = moduleBuilder.create<LLVM::LLVMFuncOp>(loc, "printf",
+                                                         printfTy);
+    }
+
+    static int64_t dbgMsgId = 0;
+    int64_t launchNum = ++dbgMsgId;
+    auto llvmI64Type = IntegerType::get(moduleOp.getContext(), 64);
+    Value launchNumVal = rewriter.create<LLVM::ConstantOp>(
+        loc, llvmI64Type, rewriter.getI64IntegerAttr(launchNum));
+
+    std::string kernelNameStr =
+        (launchOp.getKernelModuleName().getValue() + "::" +
+         launchOp.getKernelName().getValue())
+            .str();
+    kernelNameStr.push_back('\0');
+    std::string msgGlobalName =
+        llvm::formatv("__polygeist_mgpu_launch_msg_{0}", launchNum - 1).str();
+    Value msgPtr =
+        LLVM::createGlobalString(loc, rewriter, msgGlobalName, kernelNameStr,
+                                 LLVM::Linkage::Internal,
+                                 /*opaquePointers=*/true);
+
+    auto deviceAttr =
+        launchOp->getAttrOfType<IntegerAttr>("polygeist.mgpu.device_index");
+    auto offsetAttr =
+        launchOp->getAttrOfType<IntegerAttr>("polygeist.mgpu.linear_offset");
+    auto countAttr =
+        launchOp->getAttrOfType<IntegerAttr>("polygeist.mgpu.linear_count");
+    bool hasRange = deviceAttr && offsetAttr && countAttr;
+
+    SmallVector<Value> printfArgs;
+    std::string fmt;
+    if (hasRange) {
+      int64_t offset = offsetAttr.getInt();
+      int64_t end = offset + countAttr.getInt();
+      fmt = "[mgpu] launch #%lld: %s grid(%d,%d,%d) block(%d,%d,%d) device %d "
+            "range [%lld, %lld)\n";
+      printfArgs.push_back(launchNumVal);
+      printfArgs.push_back(msgPtr);
+      printfArgs.push_back(adaptor.getGridSizeX());
+      printfArgs.push_back(adaptor.getGridSizeY());
+      printfArgs.push_back(adaptor.getGridSizeZ());
+      printfArgs.push_back(adaptor.getBlockSizeX());
+      printfArgs.push_back(adaptor.getBlockSizeY());
+      printfArgs.push_back(adaptor.getBlockSizeZ());
+      printfArgs.push_back(rewriter.create<LLVM::ConstantOp>(
+          loc, llvmInt32Type, deviceAttr));
+      printfArgs.push_back(rewriter.create<LLVM::ConstantOp>(
+          loc, llvmI64Type, rewriter.getI64IntegerAttr(offset)));
+      printfArgs.push_back(rewriter.create<LLVM::ConstantOp>(
+          loc, llvmI64Type, rewriter.getI64IntegerAttr(end)));
+    } else {
+      fmt = "[mgpu] launch #%lld: %s grid(%d,%d,%d) block(%d,%d,%d)\n";
+      printfArgs.push_back(launchNumVal);
+      printfArgs.push_back(msgPtr);
+      printfArgs.push_back(adaptor.getGridSizeX());
+      printfArgs.push_back(adaptor.getGridSizeY());
+      printfArgs.push_back(adaptor.getGridSizeZ());
+      printfArgs.push_back(adaptor.getBlockSizeX());
+      printfArgs.push_back(adaptor.getBlockSizeY());
+      printfArgs.push_back(adaptor.getBlockSizeZ());
+    }
+    fmt.push_back('\0');
+    std::string fmtGlobalName =
+        llvm::formatv("__polygeist_mgpu_launch_fmt_{0}", launchNum - 1).str();
+    Value fmtPtr =
+        LLVM::createGlobalString(loc, rewriter, fmtGlobalName, fmt,
+                                 LLVM::Linkage::Internal,
+                                 /*opaquePointers=*/true);
+    printfArgs.insert(printfArgs.begin(), fmtPtr);
+    rewriter.create<LLVM::CallOp>(loc, printfFunc, printfArgs);
+  }
+
+  // Multi-GPU: set current device before launch so each split kernel runs on
+  // its assigned device (polygeist.mgpu.device_index is set by the split pass).
+  auto deviceIndexAttr =
+      launchOp->getAttrOfType<IntegerAttr>("polygeist.mgpu.device_index");
+  if (deviceIndexAttr) {
+    LLVM::LLVMFuncOp setDeviceFunc =
+        moduleOp.lookupSymbol<LLVM::LLVMFuncOp>("mgpurtSetDevice");
+    if (!setDeviceFunc) {
+      OpBuilder moduleBuilder(moduleOp.getBodyRegion());
+      auto i32Ty = IntegerType::get(moduleOp.getContext(), 32);
+      setDeviceFunc = moduleBuilder.create<LLVM::LLVMFuncOp>(
+          loc, "mgpurtSetDevice",
+          LLVM::LLVMFunctionType::get(i32Ty, ArrayRef<Type>{i32Ty}));
+    }
+    Value deviceArg = rewriter.create<LLVM::ConstantOp>(
+        loc, llvmInt32Type, deviceIndexAttr);
+    rewriter.create<LLVM::CallOp>(loc, setDeviceFunc, deviceArg);
+  }
+
   auto launchCall = rtLaunchKernelErrCallBuilder.create(
       loc, rewriter,
       {bitcast.getResult(), adaptor.getGridSizeX(), adaptor.getGridSizeY(),
@@ -2754,18 +2861,21 @@ struct ConvertPolygeistToLLVMPass
     : public ConvertPolygeistToLLVMBase<ConvertPolygeistToLLVMPass> {
   bool onlyGpuModules;
   std::string gpuTarget;
+  bool mgpuDebugLaunches;
   ConvertPolygeistToLLVMPass() = default;
   ConvertPolygeistToLLVMPass(bool useBarePtrCallConv, unsigned indexBitwidth,
                              bool useAlignedAlloc,
                              const llvm::DataLayout &dataLayout,
                              bool useCStyleMemRef, bool onlyGpuModules,
-                             std::string gpuTarget) {
+                             std::string gpuTarget,
+                             bool mgpuDebugLaunches = false) {
     this->useBarePtrCallConv = useBarePtrCallConv;
     this->indexBitwidth = indexBitwidth;
     this->dataLayout = dataLayout.getStringRepresentation();
     this->useCStyleMemRef = useCStyleMemRef;
     this->onlyGpuModules = onlyGpuModules;
     this->gpuTarget = gpuTarget;
+    this->mgpuDebugLaunches = mgpuDebugLaunches;
   }
 
   void convertModule(ModuleOp m, bool gpuModule) {
@@ -2871,7 +2981,8 @@ struct ConvertPolygeistToLLVMPass
       // Our custom versions of the gpu patterns
       if (useCStyleMemRef) {
         patterns.add<ConvertLaunchFuncOpToGpuRuntimeCallPattern>(
-            converter, gpu::getDefaultGpuBinaryAnnotation(), gpuTarget);
+            converter, gpu::getDefaultGpuBinaryAnnotation(), gpuTarget,
+            mgpuDebugLaunches);
         patterns.add<ConvertAllocOpToGpuRuntimeCallPattern>(converter);
       }
 
@@ -3025,7 +3136,7 @@ struct ConvertPolygeistToLLVMPass
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
     const LowerToLLVMOptions &options, bool useCStyleMemRef,
-    bool onlyGpuModules, std::string gpuTarget) {
+    bool onlyGpuModules, std::string gpuTarget, bool mgpuDebugLaunches) {
   auto allocLowering = options.allocLowering;
   // There is no way to provide additional patterns for pass, so
   // AllocLowering::None will always fail.
@@ -3035,7 +3146,8 @@ std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass(
       (allocLowering == LowerToLLVMOptions::AllocLowering::AlignedAlloc);
   return std::make_unique<ConvertPolygeistToLLVMPass>(
       options.useBarePtrCallConv, options.getIndexBitwidth(), useAlignedAlloc,
-      options.dataLayout, useCStyleMemRef, onlyGpuModules, gpuTarget);
+      options.dataLayout, useCStyleMemRef, onlyGpuModules, gpuTarget,
+      mgpuDebugLaunches);
 }
 
 std::unique_ptr<Pass> mlir::polygeist::createConvertPolygeistToLLVMPass() {

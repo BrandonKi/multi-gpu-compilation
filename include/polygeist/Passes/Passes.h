@@ -52,7 +52,8 @@ std::unique_ptr<Pass> createSCFParallelLoopUnrollPass(int unrollFactor = 2);
 std::unique_ptr<Pass>
 createConvertPolygeistToLLVMPass(const LowerToLLVMOptions &options,
                                  bool useCStyleMemRef, bool onlyGpuModules,
-                                 std::string gpuTarget);
+                                 std::string gpuTarget,
+                                 bool mgpuDebugLaunches = false);
 std::unique_ptr<Pass> createConvertPolygeistToLLVMPass();
 std::unique_ptr<Pass> createForBreakToWhilePass();
 std::unique_ptr<Pass>

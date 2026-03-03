@@ -213,6 +213,9 @@ static cl::opt<int> NumGpu("num_gpu", cl::init(1),
                            cl::desc("Number of GPUs (device_config numDevices); "
                                     "when >1, split kernel across GPUs"));
 
+static cl::opt<bool> MgpuDebugLaunches(
+    "mgpu-debug-launches", cl::init(false),
+    cl::desc("Insert host-side printf before each GPU kernel launch"));
 
 static cl::opt<std::string> Output("o", cl::init("-"), cl::desc("Output file"));
 
@@ -599,6 +602,11 @@ int main(int argc, char **argv) {
   if (!parseMLIR(argv[0], files, cfunction, includeDirs, defines, module,
                  triple, DL, gpuTriple, gpuDL)) {
     return 1;
+  }
+
+  if (MgpuDebugLaunches) {
+    module.get()->setAttr("polygeist.mgpu_debug_launches",
+                          mlir::UnitAttr::get(&context));
   }
 
   auto convertGepInBounds = [](llvm::Module &llvmModule) {
@@ -1103,7 +1111,7 @@ int main(int argc, char **argv) {
 
         pm3.addPass(polygeist::createConvertPolygeistToLLVMPass(
             options, CStyleMemRef, /* onlyGpuModules */ false,
-            EmitCUDA ? "cuda" : "rocm"));
+            EmitCUDA ? "cuda" : "rocm", MgpuDebugLaunches));
         pm3.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
             canonicalizerConfig, {}, {}));
 
