@@ -91,11 +91,11 @@ static void insertSetDeviceBeforeCudaCalls(ModuleOp module) {
             return;
         StringRef name = *callee;
         unsigned deviceOperandIndex = 0;
-        if (name == "mgpurtMemAllocOnDevice" || name == "mgpurtMemFree" ||
-            name == "mgpurtStreamCreate" || name == "mgpurtStreamDestroy" ||
-            name == "mgpurtStreamSynchronize" || name == "mgpurtDeviceSynchronizeErr") {
+        if (name == "mgpurtMemAllocOnDevice" || name == "mgpurtMemFree" || name == "mgpurtStreamCreate" ||
+            name == "mgpurtStreamDestroy" || name == "mgpurtStreamSynchronize" ||
+            name == "mgpurtDeviceSynchronizeErr") {
             deviceOperandIndex = 0;
-        // } else if (name == "mgpurtMemcpyPeer") {
+            // } else if (name == "mgpurtMemcpyPeer") {
             // deviceOperandIndex = 1; // destination device
         } else {
             return;
@@ -165,7 +165,8 @@ static Value getOrCreateI32Constant(ConversionPatternRewriter &rewriter, Locatio
 }
 
 static Value getDeviceI32FromValue(OpBuilder &builder, Location loc, Value dev) {
-    if (!dev) return nullptr;
+    if (!dev)
+        return nullptr;
     if (dev.getType().isa<IntegerType>())
         return dev;
     if (auto cast = dev.getDefiningOp<UnrealizedConversionCastOp>()) {
@@ -177,16 +178,15 @@ static Value getDeviceI32FromValue(OpBuilder &builder, Location loc, Value dev) 
         if (idx) {
             if (auto cst = idx.getDefiningOp<arith::ConstantIndexOp>())
                 return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
-                    builder.getI32IntegerAttr(static_cast<int32_t>(cst.value())));
+                                                         builder.getI32IntegerAttr(static_cast<int32_t>(cst.value())));
             if (auto cst = idx.getDefiningOp<arith::ConstantOp>()) {
                 if (auto intAttr = llvm::dyn_cast<IntegerAttr>(cst.getValue()))
-                    return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
-                        builder.getI32IntegerAttr(static_cast<int32_t>(intAttr.getInt())));
+                    return builder.create<arith::ConstantOp>(
+                        loc, builder.getI32Type(), builder.getI32IntegerAttr(static_cast<int32_t>(intAttr.getInt())));
             }
             return builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), idx);
         }
-        return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
-            builder.getI32IntegerAttr(0));
+        return builder.create<arith::ConstantOp>(loc, builder.getI32Type(), builder.getI32IntegerAttr(0));
     }
     return nullptr;
 }
@@ -246,8 +246,7 @@ struct ConvertGetDeviceOp : public OpConversionPattern<GetDeviceOp> {
             i32Val = rewriter.create<arith::IndexCastOp>(op.getLoc(), i32Type, indexVal);
         }
         Type deviceType = DeviceType::get(rewriter.getContext());
-        Value deviceVal =
-            rewriter.create<UnrealizedConversionCastOp>(op.getLoc(), deviceType, i32Val).getResult(0);
+        Value deviceVal = rewriter.create<UnrealizedConversionCastOp>(op.getLoc(), deviceType, i32Val).getResult(0);
         rewriter.replaceOp(op, deviceVal);
         return success();
     }
@@ -330,8 +329,8 @@ struct ConvertFreeOp : public OpConversionPattern<FreeOp> {
                 if (auto getDev = origDev.getDefiningOp<GetDeviceOp>()) {
                     Value idx = getDev.getDeviceIndex();
                     if (!idx)
-                        return rewriter.notifyMatchFailure(op,
-                                                           "get_device has no index operand (convert get_device first)");
+                        return rewriter.notifyMatchFailure(
+                            op, "get_device has no index operand (convert get_device first)");
                     if (auto cst = idx.getDefiningOp<arith::ConstantOp>())
                         deviceI32 = getOrCreateI32Constant(
                             rewriter, loc, static_cast<int32_t>(cst.getValue().cast<IntegerAttr>().getInt()));
@@ -352,9 +351,8 @@ struct ConvertFreeOp : public OpConversionPattern<FreeOp> {
         auto voidType = LLVM::LLVMVoidType::get(rewriter.getContext());
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
         auto i32Type = rewriter.getI32Type();
-        auto freeFunc = getOrCreateFunc(
-            module, "mgpurtMemFree",
-            LLVM::LLVMFunctionType::get(voidType, {i32Type, ptrType, ptrType}));
+        auto freeFunc = getOrCreateFunc(module, "mgpurtMemFree",
+                                        LLVM::LLVMFunctionType::get(voidType, {i32Type, ptrType, ptrType}));
         Value nullStream = rewriter.create<LLVM::ZeroOp>(loc, ptrType);
         rewriter.create<LLVM::CallOp>(loc, freeFunc, ValueRange{deviceI32, ptrVal, nullStream});
         rewriter.eraseOp(op);
@@ -431,9 +429,8 @@ struct ConvertCreateStreamOp : public OpConversionPattern<CreateStreamOp> {
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
         auto i32Type = rewriter.getI32Type();
-        auto streamCreateFunc = getOrCreateFunc(
-            module, "mgpurtStreamCreate",
-            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
+        auto streamCreateFunc =
+            getOrCreateFunc(module, "mgpurtStreamCreate", LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
         Value one = rewriter.create<LLVM::ConstantOp>(loc, rewriter.getI32Type(), rewriter.getI32IntegerAttr(1));
         Value alloca = rewriter.create<LLVM::AllocaOp>(loc, ptrType, ptrType, one, 0);
         rewriter.create<LLVM::CallOp>(loc, streamCreateFunc, ValueRange{deviceI32, alloca});
@@ -459,9 +456,8 @@ struct ConvertDestroyStreamOp : public OpConversionPattern<DestroyStreamOp> {
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-        auto destroyFunc = getOrCreateFunc(
-            module, "mgpurtStreamDestroy",
-            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
+        auto destroyFunc =
+            getOrCreateFunc(module, "mgpurtStreamDestroy", LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
         rewriter.create<LLVM::CallOp>(loc, destroyFunc, ValueRange{deviceI32, stream});
         rewriter.eraseOp(op);
         return success();
@@ -484,9 +480,8 @@ struct ConvertSyncStreamOp : public OpConversionPattern<SyncStreamOp> {
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
         auto ptrType = LLVM::LLVMPointerType::get(rewriter.getContext());
-        auto syncFunc = getOrCreateFunc(
-            module, "mgpurtStreamSynchronize",
-            LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
+        auto syncFunc = getOrCreateFunc(module, "mgpurtStreamSynchronize",
+                                        LLVM::LLVMFunctionType::get(i32Type, {i32Type, ptrType}));
         rewriter.create<LLVM::CallOp>(loc, syncFunc, ValueRange{deviceI32, stream});
         rewriter.eraseOp(op);
         return success();
@@ -505,8 +500,8 @@ struct ConvertSyncDeviceOp : public OpConversionPattern<SyncDeviceOp> {
 
         ModuleOp module = op->getParentOfType<ModuleOp>();
         auto i32Type = rewriter.getI32Type();
-        auto syncFunc = getOrCreateFunc(module, "mgpurtDeviceSynchronizeErr",
-                                        LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
+        auto syncFunc =
+            getOrCreateFunc(module, "mgpurtDeviceSynchronizeErr", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
         rewriter.create<LLVM::CallOp>(loc, syncFunc, deviceI32);
         rewriter.eraseOp(op);
         return success();
@@ -558,13 +553,12 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
             Value blockY = block.size() > 1 ? block[1] : one;
             Value blockZ = block.size() > 2 ? block[2] : one;
             OperationState state(loc, gpu::LaunchOp::getOperationName());
-            gpu::LaunchOp::build(rewriter, state, gridX, gridY, gridZ, blockX,
-                                blockY, blockZ,
-                                /*dynamicSharedMemorySize=*/nullptr,
-                                /*asyncTokenType=*/nullptr,
-                                /*asyncDependencies=*/ValueRange{},
-                                /*workgroupAttributions=*/TypeRange{},
-                                /*privateAttributions=*/TypeRange{});
+            gpu::LaunchOp::build(rewriter, state, gridX, gridY, gridZ, blockX, blockY, blockZ,
+                                 /*dynamicSharedMemorySize=*/nullptr,
+                                 /*asyncTokenType=*/nullptr,
+                                 /*asyncDependencies=*/ValueRange{},
+                                 /*workgroupAttributions=*/TypeRange{},
+                                 /*privateAttributions=*/TypeRange{});
             Block *body = &state.regions[0]->front();
             {
                 OpBuilder b(ctx);
@@ -573,14 +567,14 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
             }
             auto gpuLaunch = cast<gpu::LaunchOp>(rewriter.create(state));
             for (const NamedAttribute &attr : op->getAttrs()) {
-              if (attr.getName().getValue().startswith("polygeist."))
-                gpuLaunch->setAttr(attr.getName(), attr.getValue());
+                if (attr.getName().getValue().startswith("polygeist."))
+                    gpuLaunch->setAttr(attr.getName(), attr.getValue());
             }
             Block &gpuBlock = gpuLaunch.getBody().front();
             Block &mgpuBlock = op.getKernelRegion().front();
             IRMapping mapping;
             for (unsigned i = 0, e = mgpuBlock.getNumArguments() < 12 ? mgpuBlock.getNumArguments() : 12; i < e; ++i)
-              mapping.map(mgpuBlock.getArgument(i), gpuBlock.getArgument(i));
+                mapping.map(mgpuBlock.getArgument(i), gpuBlock.getArgument(i));
             rewriter.setInsertionPoint(gpuBlock.getTerminator());
             for (Operation &innerOp : mgpuBlock) {
                 if (isa<TerminatorOp>(innerOp))
@@ -602,8 +596,8 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         target.addLegalDialect<gpu::GPUDialect>();
         target.addLegalOp<UnrealizedConversionCastOp>();
         target.addLegalDialect<MultiGpuDialect>();
-        target.addIllegalOp<GetDeviceOp, AllocOp, FreeOp, MemcpyOp, SyncDeviceOp, CreateStreamOp,
-                            DestroyStreamOp, SyncStreamOp>();
+        target.addIllegalOp<GetDeviceOp, AllocOp, FreeOp, MemcpyOp, SyncDeviceOp, CreateStreamOp, DestroyStreamOp,
+                            SyncStreamOp>();
 
         RewritePatternSet patterns(ctx);
         patterns.add<ConvertGetDeviceOp>(typeConverter, ctx, PatternBenefit(10));

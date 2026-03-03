@@ -1,18 +1,18 @@
+#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/Dialect/Arith/IR/Arith.h"
 #include "mlir/Dialect/Func/IR/FuncOps.h"
 #include "mlir/Dialect/GPU/IR/GPUDialect.h"
 #include "mlir/Dialect/MemRef/IR/MemRef.h"
 #include "mlir/Dialect/SCF/IR/SCF.h"
-#include "mlir/Dialect/Affine/IR/AffineOps.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Transforms/GreedyPatternRewriteDriver.h"
 
-#include "polygeist/Dialect.h"
 #include "multigpu/MultiGpuDialect.h"
 #include "multigpu/MultiGpuOps.h"
+#include "polygeist/Dialect.h"
 
 #define DEBUG_TYPE "gpu-to-mgpu"
 
@@ -32,8 +32,8 @@ struct ConvertLaunchOp : public OpRewritePattern<gpu::LaunchOp> {
 
         rewriter.setInsertionPoint(op);
         Value c0 = rewriter.create<arith::ConstantIndexOp>(loc, 0);
-        multigpu::GetDeviceOp getDeviceOp = rewriter.create<multigpu::GetDeviceOp>(
-            loc, multigpu::DeviceType::get(context), c0);
+        multigpu::GetDeviceOp getDeviceOp =
+            rewriter.create<multigpu::GetDeviceOp>(loc, multigpu::DeviceType::get(context), c0);
         Value device = getDeviceOp.getResult();
 
         ValueRange gridDims = ValueRange{op.getGridSizeX(), op.getGridSizeY(), op.getGridSizeZ()};
@@ -43,8 +43,7 @@ struct ConvertLaunchOp : public OpRewritePattern<gpu::LaunchOp> {
         multigpu::LaunchOp::build(rewriter, state, device, gridDims, blockDims,
                                   /*stream=*/Value());
 
-        multigpu::LaunchOp mgpuLaunch =
-            cast<multigpu::LaunchOp>(rewriter.create(state));
+        multigpu::LaunchOp mgpuLaunch = cast<multigpu::LaunchOp>(rewriter.create(state));
 
         Region &gpuRegion = op.getRegion();
         Region &mgpuRegion = mgpuLaunch.getKernelRegion();
@@ -95,8 +94,7 @@ static bool isCudaMallocWrapperCall(func::CallOp call) {
     return true;
 }
 
-static LogicalResult tryConvertOneCudaAlloc(func::CallOp call, OpBuilder &b,
-    SmallVector<Operation *> &loadsToErase) {
+static LogicalResult tryConvertOneCudaAlloc(func::CallOp call, OpBuilder &b, SmallVector<Operation *> &loadsToErase) {
     if (!isCudaMallocWrapperCall(call))
         return failure();
     Value castOp = call.getOperand(0);
@@ -150,9 +148,9 @@ static LogicalResult tryConvertOneCudaAlloc(func::CallOp call, OpBuilder &b,
     if (!device) {
         Block *entry = &func.getBody().front();
         OpBuilder entryBuilder(entry, entry->begin());
-        device = entryBuilder.create<multigpu::GetDeviceOp>(
-            call.getLoc(), multigpu::DeviceType::get(call.getContext()),
-            entryBuilder.create<arith::ConstantIndexOp>(call.getLoc(), 0));
+        device =
+            entryBuilder.create<multigpu::GetDeviceOp>(call.getLoc(), multigpu::DeviceType::get(call.getContext()),
+                                                       entryBuilder.create<arith::ConstantIndexOp>(call.getLoc(), 0));
     }
     Location loc = call.getLoc();
     auto resultType = MemRefType::get({numElements}, elemTy);
@@ -244,9 +242,8 @@ struct ConvertCudaAllocToMgpu : public OpRewritePattern<func::CallOp> {
         if (!device) {
             Block *entry = &func.getBody().front();
             OpBuilder b(entry, entry->begin());
-            device = b.create<multigpu::GetDeviceOp>(
-                call.getLoc(), multigpu::DeviceType::get(getContext()),
-                b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
+            device = b.create<multigpu::GetDeviceOp>(call.getLoc(), multigpu::DeviceType::get(getContext()),
+                                                     b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
         }
         Location loc = call.getLoc();
         auto resultType = MemRefType::get({numElements}, elemTy);
@@ -281,8 +278,7 @@ struct ConvertCudaAllocToMgpu : public OpRewritePattern<func::CallOp> {
     }
 };
 
-static Value resolveFreeOperandToAlloc(Value arg, Operation **ptr2memrefOp,
-                                       Operation **memref2ptrOp) {
+static Value resolveFreeOperandToAlloc(Value arg, Operation **ptr2memrefOp, Operation **memref2ptrOp) {
     *ptr2memrefOp = nullptr;
     *memref2ptrOp = nullptr;
     Value v = arg;
@@ -351,18 +347,16 @@ struct ConvertCudaFreeToMgpu : public OpRewritePattern<func::CallOp> {
         }
         Block *entry = &func.getBody().front();
         OpBuilder b(entry, entry->begin());
-        return b.create<multigpu::GetDeviceOp>(
-            call.getLoc(), multigpu::DeviceType::get(getContext()),
-            b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
+        return b.create<multigpu::GetDeviceOp>(call.getLoc(), multigpu::DeviceType::get(getContext()),
+                                               b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
     }
 };
 
-struct GpuToMultiGpuConversionPass
-    : public PassWrapper<GpuToMultiGpuConversionPass, OperationPass<ModuleOp>> {
-  MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(GpuToMultiGpuConversionPass)
+struct GpuToMultiGpuConversionPass : public PassWrapper<GpuToMultiGpuConversionPass, OperationPass<ModuleOp>> {
+    MLIR_DEFINE_EXPLICIT_INTERNAL_INLINE_TYPE_ID(GpuToMultiGpuConversionPass)
 
-  GpuToMultiGpuConversionPass() = default;
-  GpuToMultiGpuConversionPass(uint32_t numGpu) : numDevices(numGpu) {}
+    GpuToMultiGpuConversionPass() = default;
+    GpuToMultiGpuConversionPass(uint32_t numGpu) : numDevices(numGpu) {}
 
     void getDependentDialects(DialectRegistry &registry) const override {
         registry.insert<multigpu::MultiGpuDialect>();
@@ -371,27 +365,24 @@ struct GpuToMultiGpuConversionPass
         registry.insert<mlir::polygeist::PolygeistDialect>();
     }
 
-    void insertDeviceConfigOp(ModuleOp& mod, MLIRContext *ctx) {
+    void insertDeviceConfigOp(ModuleOp &mod, MLIRContext *ctx) {
         multigpu::DeviceConfigOp existing;
         mod.walk([&existing](multigpu::DeviceConfigOp op) {
             existing = op;
             return WalkResult::interrupt();
         });
-        auto attr = multigpu::DeviceConfigAttr::get(
-            ctx, /*numDevices=*/numDevices,
-            /*deviceIds=*/DenseI32ArrayAttr());
+        auto attr = multigpu::DeviceConfigAttr::get(ctx, /*numDevices=*/numDevices,
+                                                    /*deviceIds=*/DenseI32ArrayAttr());
         if (existing) {
             existing->setAttr("config", attr);
             return;
         }
         OpBuilder b(ctx);
         b.setInsertionPointToStart(mod.getBody());
-        b.create<multigpu::DeviceConfigOp>(mod.getLoc(),
-                                           b.getStringAttr("mgpu_device_config"),
-                                           attr);
+        b.create<multigpu::DeviceConfigOp>(mod.getLoc(), b.getStringAttr("mgpu_device_config"), attr);
     }
 
-  uint32_t numDevices = 1;
+    uint32_t numDevices = 1;
 
     void runOnOperation() override {
         ModuleOp module = getOperation();
@@ -448,9 +439,8 @@ struct GpuToMultiGpuConversionPass
             if (!device) {
                 Block *entry = &func.getBody().front();
                 OpBuilder b(entry, entry->begin());
-                device = b.create<multigpu::GetDeviceOp>(
-                    call.getLoc(), multigpu::DeviceType::get(context),
-                    b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
+                device = b.create<multigpu::GetDeviceOp>(call.getLoc(), multigpu::DeviceType::get(context),
+                                                         b.create<arith::ConstantIndexOp>(call.getLoc(), 0));
             }
             Value freeArg = call.getOperand(0);
             memref::CastOp maybeCast = freeArg.getDefiningOp<memref::CastOp>();
@@ -479,16 +469,12 @@ struct GpuToMultiGpuConversionPass
         }
     }
 
-    StringRef getArgument() const final {
-        return "gpu-to-mgpu";
-    }
+    StringRef getArgument() const final { return "gpu-to-mgpu"; }
 
-    StringRef getDescription() const final {
-        return "Convert GPU dialect and CUDA runtime calls to mgpu dialect";
-    }
+    StringRef getDescription() const final { return "Convert GPU dialect and CUDA runtime calls to mgpu dialect"; }
 };
 
-}
+} // namespace
 
 namespace mlir {
 namespace multigpu {
@@ -497,9 +483,7 @@ std::unique_ptr<Pass> createGpuToMultiGpuConversionPass(uint32_t numGpu) {
     return std::make_unique<GpuToMultiGpuConversionPass>(numGpu);
 }
 
-void registerGpuToMultiGpuConversionPass() {
-    PassRegistration<GpuToMultiGpuConversionPass>();
-}
+void registerGpuToMultiGpuConversionPass() { PassRegistration<GpuToMultiGpuConversionPass>(); }
 
-}
-}
+} // namespace multigpu
+} // namespace mlir
