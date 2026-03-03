@@ -50,10 +50,16 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   set(CMAKE_CXX_STANDARD 17 CACHE STRING "C++ standard to conform to")
 
+  if(DEFINED ENV{CLANG_DIR})
+    set(Clang_DIR "$ENV{CLANG_DIR}" CACHE PATH "Clang config")
+  endif()
+  if(DEFINED ENV{LLVM_DIR})
+    set(LLVM_DIR "$ENV{LLVM_DIR}" CACHE PATH "LLVM config")
+  endif()
+
   message(STATUS "Searching for MLIRConfig.cmake in: ${MLIR_DIR}")
   find_package(MLIR REQUIRED CONFIG)
 
-  set(Clang_DIR ${CLANG_DIR})
   message(STATUS "Searching for ClangConfig.cmake in: ${Clang_DIR}")
   find_package(Clang REQUIRED CONFIG)
 
@@ -67,7 +73,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
   message(STATUS "Using MLIRConfig.cmake in: ${MLIR_DIR}")
   message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-  message(STATUS "Using ClangConfig.cmake in: ${CLANG_DIR}")
+  message(STATUS "Using ClangConfig.cmake in: ${Clang_DIR}")
 else ()
   set(LLVM_SOURCE_DIR ${LLVM_MAIN_SRC_DIR})
   set(MLIR_MAIN_SRC_DIR ${LLVM_MAIN_SRC_DIR}/../mlir)
