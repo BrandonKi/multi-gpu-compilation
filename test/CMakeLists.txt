@@ -31,6 +31,10 @@ set(MGPU_TEST_FILES
   multi_gpu_config.mlir
   multi_gpu_reduction.mlir
   multi_gpu_sharding.mlir
+  split-kernel-mgpu.mlir
+  split-kernel-mgpu-skip-num-devices-one.mlir
+  split-kernel-mgpu-skip-no-linear-index.mlir
+  split-kernel-mgpu-four-devices.mlir
 )
 foreach(_mgpu_file ${MGPU_TEST_FILES})
   configure_file(
