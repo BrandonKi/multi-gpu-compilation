@@ -551,6 +551,7 @@ int main(int argc, char **argv) {
   mlir::multigpu::registerGpuToMultiGpuConversionPass();
   mlir::multigpu::registerMultiGpuToLLVMConversionPass();
   mlir::multigpu::registerDeviceAllocationPass();
+  mlir::multigpu::registerSplitKernelMultiGpuPass();
   mlir::registerAllDialects(registry);
   mlir::registerAllExtensions(registry);
   mlir::registerAllFromLLVMIRTranslations(registry);
@@ -920,7 +921,10 @@ int main(int argc, char **argv) {
       // We cannot canonicalize here because we have sunk some operations in the
       // kernel which the canonicalizer would hoist
 
-      pm.addPass(mlir::multigpu::createGpuToMultiGpuConversionPass());
+      int numGpu = std::max(1, static_cast<int>(NumGpu));
+      pm.addPass(mlir::multigpu::createGpuToMultiGpuConversionPass(numGpu));
+      if (numGpu > 1)
+        pm.addPass(mlir::multigpu::createSplitKernelMultiGpuPass());
       pm.addPass(mlir::multigpu::createMultiGpuToLLVMConversionPass());
 
       // TODO pass in gpuDL, the format is weird

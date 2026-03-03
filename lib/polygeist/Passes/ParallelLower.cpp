@@ -664,7 +664,44 @@ void ParallelLower::runOnOperation() {
   }
 }
 
+namespace {
+constexpr unsigned kNumLaunchBodyConfigArgs = 12;
+
+// fix weird issue with block branching to launch body with 12 index args but 0 operands
+static void fixOutlinerBranchInFunc(gpu::GPUFuncOp func) {
+  Block &entry = func.getBody().front();
+  if (entry.empty())
+    return;
+  auto branch = dyn_cast<cf::BranchOp>(entry.getTerminator());
+  if (!branch || branch.getDestOperands().size() != 0)
+    return;
+  Block *dest = branch.getDest();
+  if (dest->getNumArguments() != kNumLaunchBodyConfigArgs)
+    return;
+  for (BlockArgument arg : dest->getArguments())
+    if (!arg.getType().isIndex())
+      return;
+  SmallVector<Value, 12> indexVals;
+  for (Operation &op : entry) {
+    if (indexVals.size() >= kNumLaunchBodyConfigArgs)
+      break;
+    if (isa<gpu::BlockIdOp, gpu::ThreadIdOp, gpu::GridDimOp, gpu::BlockDimOp>(
+            op) &&
+        op.getNumResults() == 1 && op.getResult(0).getType().isIndex())
+      indexVals.push_back(op.getResult(0));
+  }
+  if (indexVals.size() != kNumLaunchBodyConfigArgs)
+    return;
+  OpBuilder b(branch);
+  b.create<cf::BranchOp>(branch.getLoc(), dest, indexVals);
+  branch.erase();
+}
+} // namespace
+
 void FixGPUFunc::runOnOperation() {
+
+  getOperation()->walk(
+      [](gpu::GPUFuncOp func) { fixOutlinerBranchInFunc(func); });
 
   SymbolTableCollection symbolTable;
   symbolTable.getSymbolTable(getOperation());

@@ -20,6 +20,9 @@ void registerMultiGpuToLLVMConversionPass();
 std::unique_ptr<Pass> createDeviceAllocationPass();
 void registerDeviceAllocationPass();
 
+std::unique_ptr<Pass> createSplitKernelMultiGpuPass();
+void registerSplitKernelMultiGpuPass();
+
 void populateMultiGpuCanonicalizationPatterns(RewritePatternSet &patterns);
 
 }

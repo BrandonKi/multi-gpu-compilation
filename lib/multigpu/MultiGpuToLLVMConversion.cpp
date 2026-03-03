@@ -164,6 +164,33 @@ static Value getOrCreateI32Constant(ConversionPatternRewriter &rewriter, Locatio
     return rewriter.create<LLVM::ConstantOp>(loc, i32Type, rewriter.getI32IntegerAttr(value));
 }
 
+static Value getDeviceI32FromValue(OpBuilder &builder, Location loc, Value dev) {
+    if (!dev) return nullptr;
+    if (dev.getType().isa<IntegerType>())
+        return dev;
+    if (auto cast = dev.getDefiningOp<UnrealizedConversionCastOp>()) {
+        if (cast.getNumOperands() == 1 && cast.getOperand(0).getType().isa<IntegerType>())
+            return cast.getOperand(0);
+    }
+    if (auto getDev = dev.getDefiningOp<GetDeviceOp>()) {
+        Value idx = getDev.getDeviceIndex();
+        if (idx) {
+            if (auto cst = idx.getDefiningOp<arith::ConstantIndexOp>())
+                return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
+                    builder.getI32IntegerAttr(static_cast<int32_t>(cst.value())));
+            if (auto cst = idx.getDefiningOp<arith::ConstantOp>()) {
+                if (auto intAttr = llvm::dyn_cast<IntegerAttr>(cst.getValue()))
+                    return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
+                        builder.getI32IntegerAttr(static_cast<int32_t>(intAttr.getInt())));
+            }
+            return builder.create<arith::IndexCastOp>(loc, builder.getI32Type(), idx);
+        }
+        return builder.create<arith::ConstantOp>(loc, builder.getI32Type(),
+            builder.getI32IntegerAttr(0));
+    }
+    return nullptr;
+}
+
 static Value getDeviceI32(ConversionPatternRewriter &rewriter, Location loc, Value origDev, Value adaptedDev) {
     if (adaptedDev && adaptedDev.getType().isa<IntegerType>())
         return adaptedDev;
@@ -505,9 +532,22 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
         SmallVector<LaunchOp> toConvert;
         module.walk([&](LaunchOp launch) { toConvert.push_back(launch); });
         IRRewriter rewriter(ctx);
+        Type i32Type = IntegerType::get(ctx, 32);
+        LLVM::LLVMFuncOp setDeviceFunc =
+            getOrCreateFunc(module, "mgpurtSetDevice", LLVM::LLVMFunctionType::get(i32Type, {i32Type}));
+
         for (LaunchOp op : toConvert) {
             rewriter.setInsertionPoint(op);
             Location loc = op.getLoc();
+            // insert setDevice(device) before this launch
+            Value deviceI32 = nullptr;
+            if (auto attr = op->getAttrOfType<IntegerAttr>("polygeist.mgpu.device_index"))
+                deviceI32 = rewriter.create<arith::ConstantOp>(loc, i32Type, attr);
+            else if (Value dev = op.getDevice())
+                deviceI32 = getDeviceI32FromValue(rewriter, loc, dev);
+            if (deviceI32) {
+                rewriter.create<LLVM::CallOp>(loc, setDeviceFunc, deviceI32);
+            }
             ValueRange grid = op.getGrid();
             ValueRange block = op.getBlock();
             Value one = rewriter.create<arith::ConstantIndexOp>(loc, 1);
@@ -532,14 +572,22 @@ struct MultiGpuToLLVMConversionPass : public PassWrapper<MultiGpuToLLVMConversio
                 b.create<gpu::TerminatorOp>(loc);
             }
             auto gpuLaunch = cast<gpu::LaunchOp>(rewriter.create(state));
+            for (const NamedAttribute &attr : op->getAttrs()) {
+              if (attr.getName().getValue().startswith("polygeist."))
+                gpuLaunch->setAttr(attr.getName(), attr.getValue());
+            }
             Block &gpuBlock = gpuLaunch.getBody().front();
             Block &mgpuBlock = op.getKernelRegion().front();
             IRMapping mapping;
+            for (unsigned i = 0, e = mgpuBlock.getNumArguments() < 12 ? mgpuBlock.getNumArguments() : 12; i < e; ++i)
+              mapping.map(mgpuBlock.getArgument(i), gpuBlock.getArgument(i));
             rewriter.setInsertionPoint(gpuBlock.getTerminator());
             for (Operation &innerOp : mgpuBlock) {
                 if (isa<TerminatorOp>(innerOp))
                     continue;
-                rewriter.clone(innerOp, mapping);
+                Operation *cloned = rewriter.clone(innerOp, mapping);
+                for (unsigned i = 0; i < innerOp.getNumResults(); ++i)
+                    mapping.map(innerOp.getResult(i), cloned->getResult(i));
             }
             rewriter.eraseOp(op);
         }
