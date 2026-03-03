@@ -2220,6 +2220,51 @@ struct ConvertParallelToGPU2Pass
   }
 };
 
+// i feel like neither of these should really be necessary
+static char *kPolygeistMgpuLaunchAttrs = "polygeist.mgpu.launch_attrs";
+
+struct PreserveMgpuLaunchAttrsPass
+    : public PreserveMgpuLaunchAttrsBase<PreserveMgpuLaunchAttrsPass> {
+  void runOnOperation() override {
+    auto module = getOperation();
+    MLIRContext *ctx = module.getContext();
+    SmallVector<gpu::LaunchOp> launches;
+    module.walk([&](gpu::LaunchOp op) { launches.push_back(op); });
+    if (launches.empty())
+      return;
+    SmallVector<Attribute> dicts;
+    for (gpu::LaunchOp launch : launches) {
+      SmallVector<NamedAttribute> polyAttrs;
+      for (NamedAttribute na : launch->getAttrs())
+        if (na.getName().getValue().starts_with("polygeist."))
+          polyAttrs.push_back(na);
+      dicts.push_back(DictionaryAttr::get(ctx, polyAttrs));
+    }
+    module->setAttr(kPolygeistMgpuLaunchAttrs, ArrayAttr::get(ctx, dicts));
+  }
+};
+
+struct RestoreMgpuLaunchAttrsPass
+    : public RestoreMgpuLaunchAttrsBase<RestoreMgpuLaunchAttrsPass> {
+  void runOnOperation() override {
+    auto module = getOperation();
+    auto arr = module->getAttrOfType<ArrayAttr>(kPolygeistMgpuLaunchAttrs);
+    if (!arr)
+      return;
+    SmallVector<gpu::LaunchFuncOp> funcs;
+    module.walk([&](gpu::LaunchFuncOp op) { funcs.push_back(op); });
+    if (funcs.size() != arr.size())
+      return;
+    for (auto it : llvm::zip(funcs, arr)) {
+      gpu::LaunchFuncOp launchFunc = std::get<0>(it);
+      DictionaryAttr dict = cast<DictionaryAttr>(std::get<1>(it));
+      for (NamedAttribute na : dict)
+        launchFunc->setAttr(na.getName(), na.getValue());
+    }
+    module->removeAttr(kPolygeistMgpuLaunchAttrs);
+  }
+};
+
 struct MergeGPUModulesPass
     : public MergeGPUModulesPassBase<MergeGPUModulesPass> {
   void runOnOperation() override {
@@ -2292,6 +2337,12 @@ struct MergeGPUModulesPass
 
 } // namespace
 
+std::unique_ptr<Pass> mlir::polygeist::createPreserveMgpuLaunchAttrsPass() {
+  return std::make_unique<PreserveMgpuLaunchAttrsPass>();
+}
+std::unique_ptr<Pass> mlir::polygeist::createRestoreMgpuLaunchAttrsPass() {
+  return std::make_unique<RestoreMgpuLaunchAttrsPass>();
+}
 std::unique_ptr<Pass> mlir::polygeist::createMergeGPUModulesPass() {
   return std::make_unique<MergeGPUModulesPass>();
 }

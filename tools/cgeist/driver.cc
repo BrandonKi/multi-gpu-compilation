@@ -948,7 +948,9 @@ int main(int argc, char **argv) {
       pm.addPass(mlir::multigpu::createMultiGpuToLLVMConversionPass());
 
       // TODO pass in gpuDL, the format is weird
+      pm.addPass(polygeist::createPreserveMgpuLaunchAttrsPass());
       pm.addPass(mlir::createGpuKernelOutliningPass());
+      pm.addPass(polygeist::createRestoreMgpuLaunchAttrsPass());
       pm.addPass(polygeist::createMergeGPUModulesPass());
       pm.addPass(mlir::polygeist::createPolygeistCanonicalizePass(
           canonicalizerConfig, {}, {}));

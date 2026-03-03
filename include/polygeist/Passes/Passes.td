@@ -139,6 +139,18 @@ def MergeGPUModulesPass : Pass<"merge-gpu-modules", "mlir::ModuleOp"> {
   let dependentDialects = ["func::FuncDialect", "LLVM::LLVMDialect", "gpu::GPUDialect"];
 }
 
+def PreserveMgpuLaunchAttrs : Pass<"preserve-mgpu-launch-attrs", "mlir::ModuleOp"> {
+  let summary = "internal pass";
+  let constructor = "mlir::polygeist::createPreserveMgpuLaunchAttrsPass()";
+  let dependentDialects = ["gpu::GPUDialect"];
+}
+
+def RestoreMgpuLaunchAttrs : Pass<"restore-mgpu-launch-attrs", "mlir::ModuleOp"> {
+  let summary = "internal pass";
+  let constructor = "mlir::polygeist::createRestoreMgpuLaunchAttrsPass()";
+  let dependentDialects = ["gpu::GPUDialect"];
+}
+
 def InnerSerialization : Pass<"inner-serialize"> {
   let summary = "remove scf.barrier";
   let constructor = "mlir::polygeist::createInnerSerializationPass()";

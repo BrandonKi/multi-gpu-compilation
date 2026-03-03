@@ -60,6 +60,8 @@ std::unique_ptr<Pass>
 createConvertParallelToGPUPass1(std::string arch = "sm_60");
 std::unique_ptr<Pass>
 createConvertParallelToGPUPass2(bool emitGPUKernelLaunchBounds = true);
+std::unique_ptr<Pass> createPreserveMgpuLaunchAttrsPass();
+std::unique_ptr<Pass> createRestoreMgpuLaunchAttrsPass();
 std::unique_ptr<Pass> createMergeGPUModulesPass();
 std::unique_ptr<Pass> createConvertToOpaquePtrPass();
 std::unique_ptr<Pass> createLowerAlternativesPass();
