@@ -39,6 +39,7 @@ set +e
   -lstdc++ -ldl -lpthread -lrt -lcudart_static -lcuda \
   -o "$OUT_CUBIN" \
   --cuda-gpu-arch=sm_80 \
+  -mgpu-debug-launches -mlir-print-remarks \
   -emit-cuda -cuda-lower --pm-enable-printing \
   "$@" \
   &> "$LOG"

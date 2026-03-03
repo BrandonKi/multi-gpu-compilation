@@ -44,9 +44,11 @@
 #include "mlir/Dialect/SCF/IR/SCF.h"
 #include "mlir/Dialect/SCF/Transforms/Passes.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/Verifier.h"
+#include "llvm/Support/SourceMgr.h"
 #include "mlir/InitAllDialects.h"
 #include "mlir/InitAllExtensions.h"
 #include "mlir/InitAllPasses.h"
@@ -273,6 +275,10 @@ static cl::opt<std::string>
 static cl::opt<bool> PMEnablePrinting(
     "pm-enable-printing", cl::init(false),
     cl::desc("Enable printing of IR before and after all passes"));
+
+static cl::opt<bool> MLIRPrintRemarks(
+    "mlir-print-remarks", cl::init(false),
+    cl::desc("Print MLIR pass remarks"));
 
 #include "mlir/Dialect/LLVMIR/LLVMDialect.h"
 
@@ -560,6 +566,12 @@ int main(int argc, char **argv) {
   mlir::registerAllFromLLVMIRTranslations(registry);
   mlir::registerBuiltinDialectTranslation(registry);
   MLIRContext context(registry);
+
+  llvm::SourceMgr mlirSourceMgr;
+  std::unique_ptr<mlir::SourceMgrDiagnosticHandler> mlirDiagHandler;
+  if (MLIRPrintRemarks) {
+    mlirDiagHandler = std::make_unique<mlir::SourceMgrDiagnosticHandler>(mlirSourceMgr, &context, llvm::errs());
+  }
 
   context.disableMultithreading();
   context.getOrLoadDialect<affine::AffineDialect>();
