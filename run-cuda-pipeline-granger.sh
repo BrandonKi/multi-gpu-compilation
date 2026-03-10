@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="${POLYGEIST_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-echo "Running cgeist pipeline (granger) (root: $SCRIPT_DIR)" >&2
+# echo "Running cgeist pipeline (granger) (root: $SCRIPT_DIR)" >&2
 BUILD_BIN="${SCRIPT_DIR}/build/bin"
 CLANG_VER="${CLANG_VER:-18}"
 RESOURCE_DIR="${RESOURCE_DIR:-${SCRIPT_DIR}/llvm-project/build/lib/clang/${CLANG_VER}}"
@@ -32,13 +32,15 @@ LOG="${OUT_DIR}/log-granger.txt"
 
 cd "$SCRIPT_DIR"
 
+export POLYGEIST_GPU_KERNEL_BLOCK_SIZE="${POLYGEIST_GPU_KERNEL_BLOCK_SIZE:-256}"
+
 set +e
 "$CGEIST" "$INPUT" \
   --resource-dir "$RESOURCE_DIR" \
   --cuda-path="${CUDA_PATH:-}" \
   -Wl,-Bstatic -lstdc++ -Wl,-Bdynamic -ldl -lpthread -lrt -lcudart_static -lcuda \
   -o "$OUT_CUBIN" \
-  --cuda-gpu-arch=sm_61 \
+  --cuda-gpu-arch="${CUDA_GPU_ARCH:-sm_61}" -cuda-lower \
   -emit-cuda -num_gpu=10 --mgpu-debug-launches --pm-enable-printing \
   "$@" \
   &> "$LOG"

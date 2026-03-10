@@ -3,7 +3,7 @@
 set -e
 
 SCRIPT_DIR="${POLYGEIST_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
-echo "Running cgeist pipeline (root: $SCRIPT_DIR)" >&2
+# echo "Running cgeist pipeline (root: $SCRIPT_DIR)" >&2
 BUILD_BIN="${SCRIPT_DIR}/build/bin"
 CLANG_VER="${CLANG_VER:-18}"
 RESOURCE_DIR="${RESOURCE_DIR:-${SCRIPT_DIR}/llvm-project/build/lib/clang/${CLANG_VER}}"
